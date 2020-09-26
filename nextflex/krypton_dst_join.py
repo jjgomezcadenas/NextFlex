@@ -41,8 +41,8 @@ if __name__ == "__main__":
 
     VERBOSITY = False
 
-    iPATH = "/Users/jj/Development/demoData/flex3+2"
-    ofile = "/Users/jj/Development/demoData/flex3+2/krdst.csv"
+    iPATH = "/Users/jj/Development/demoData/flex15+6"
+    ofile = f"{iPATH}/krdst.csv"
     ifnames = glob.glob(f"{iPATH}/NEXT_FLEX*.csv")
 
     print(f"{len(ifnames)} input file names ...\n")

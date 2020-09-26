@@ -221,7 +221,7 @@ if __name__ == "__main__":
 
     VERBOSITY = True
 
-    iPATH = "/Users/jj/Development/demoData/flex3+2"
+    iPATH = "/Users/jj/Development/demoData/flex15+6"
     ifnames = glob.glob(f"{iPATH}/*.h5")
 
     if VERBOSITY:
