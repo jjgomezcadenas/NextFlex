@@ -40,10 +40,10 @@ def kr_join_dst(ifnames, verbose=False, ic=100):
 if __name__ == "__main__":
 
     VERBOSITY = False
-
-    iPATH = "/Users/jj/Development/demoData/flex15+6"
-    ofile = f"{iPATH}/krdst.csv"
-    ifnames = glob.glob(f"{iPATH}/NEXT_FLEX*.csv")
+    iPATH = "/Users/jj/Development/demoData/"
+    iDIR  = "flex15+4"
+    ofile = f"{iPATH}/{iDIR}/krdst.csv"
+    ifnames = glob.glob(f"{iPATH}/{iDIR}/NEXT_FLEX*.csv")
 
     print(f"{len(ifnames)} input file names ...\n")
 

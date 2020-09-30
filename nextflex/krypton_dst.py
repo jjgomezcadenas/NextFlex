@@ -221,8 +221,10 @@ if __name__ == "__main__":
 
     VERBOSITY = True
 
-    iPATH = "/Users/jj/Development/demoData/flex15+6"
-    ifnames = glob.glob(f"{iPATH}/*.h5")
+    iPATH = "/Users/jj/Development/demoData/"
+    iDIR  = "flex15+4"
+    mDIR  = "flexmaps"
+    ifnames = glob.glob(f"{iPATH}/{iDIR}/*.h5")
 
     if VERBOSITY:
         print(f"{len(ifnames)} input file names ...\n")
@@ -230,7 +232,7 @@ if __name__ == "__main__":
             print(ifname)
         #print(get_event_numbers_in_file(ifname))
 
-    sipm_map = pd.read_csv(f'{iPATH}/sipm_map.csv')
+    sipm_map = pd.read_csv(f'{iPATH}/{mDIR}/sipm_map.csv')
     print(sipm_map)
     gf, bf = kr_dst(ifnames, sipm_map)
     print(f'good files ={gf}')
