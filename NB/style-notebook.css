@@ -3,3 +3,15 @@ h3 {
     background-color: black;
     padding: 0.5em;
 }
+
+h2 {
+    color: white;
+    background-color: red;
+    padding: 0.5em;
+}
+
+h4 {
+    color: white;
+    background-color: blue;
+    padding: 0.5em;
+}
