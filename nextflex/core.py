@@ -11,6 +11,8 @@ import numpy  as np
 import pandas as pd
 
 from pandas import DataFrame, Series
+from typing import List, Tuple
+from typing import Union
 from   dataclasses import dataclass
 
 # Specific IC stuff
@@ -25,8 +27,14 @@ from invisible_cities.io.mcinfo_io import load_mcsensor_response_df
 from invisible_cities.io.mcinfo_io import get_sensor_types
 from invisible_cities.io.mcinfo_io import get_sensor_binning
 from invisible_cities.io.mcinfo_io import get_event_numbers_in_file
+from invisible_cities.io.mcinfo_io import load_mcsensor_response_df
 
 NN= -999999  # No Number, a trick to aovid nans in data structs
+
+KEY_sensor_fibres  = 100000
+KEY_sensor_pmts    = 100
+S1_time            = 1.*units.mus
+SIPM_ids           = (KEY_sensor_pmts, KEY_sensor_fibres)
 
 
 class NNN:
@@ -36,16 +44,45 @@ class NNN:
 
 @dataclass
 class Setup:
-    name              : str   = 'NEXT-100-PMTs-Masks'
-    sipmPDE           : float = 0.4
-    maskPDE           : float = 0.4
-    qTh               : float = 1.0
+    name              : str   = 'NEXT100_PMTs_sipmPDE_1_maskPDE_1_qTh_0'
+    sipmPDE           : float = 1.0
+    maskPDE           : float = 1.0
+    qTh               : float = 0.0
     maskConfig        : str   = "FLEX100_M6_O6" # means thickness 6 mm hole 6mm
     mapDIR            : str   = "flexmaps" # where to find the SiPM map
     fibres            : bool  = False
-    key_sensor_fibres : int   = 100000
-    key_sensor_pmts   : int   = 100
-    s1_time           : float = 1.*units.mus
+
+
+@dataclass
+class PosQ:
+    evt_list  : List[int]
+    def __post_init__(self):
+        llen = len(self.evt_list)
+        self.xMax = np.zeros(shape=llen, dtype=float)
+        self.xPos = np.zeros(shape=llen, dtype=float)
+        self.yMax = np.zeros(shape=llen, dtype=float)
+        self.yPos = np.zeros(shape=llen, dtype=float)
+        self.rPos = np.zeros(shape=llen, dtype=float)
+
+        self.qMax = np.zeros(shape=llen, dtype=float)
+        self.qL   = np.zeros(shape=llen, dtype=float)
+        self.qR   = np.zeros(shape=llen, dtype=float)
+        self.qU   = np.zeros(shape=llen, dtype=float)
+        self.qD   = np.zeros(shape=llen, dtype=float)
+    def to_dict(self):
+        return {
+            'event_id' : self.evt_list,
+            'xMax': self.xMax,
+            'yMax': self.yMax,
+            'xPos': self.xPos,
+            'yPos': self.yPos,
+            'rPos': self.rPos,
+            'qMax': self.qMax,
+            'qL'  : self.qL,
+            'qR'  : self.qR,
+            'qU'  : self.qU,
+            'qD'  : self.qD
+        }
 
 
 def get_evt_true_positions_df(mcParts : DataFrame)->DataFrame:
@@ -83,3 +120,190 @@ def get_evt_true_positions_and_energy(mcParts: DataFrame)->DataFrame:
     evt_truePos['KE'] = KE
 
     return evt_truePos
+
+
+def get_sensor_response(sns_response : DataFrame,
+                        sensor_type  : str = 'PMT')->DataFrame:
+    """Returns a data frame with the charge and time of each sensor
+    for each event:
+        sensor_type = PMT, SiPM, Fibres
+
+    """
+
+    #sns_response = load_mcsensor_response_df(filename)
+
+    if sensor_type == 'PMT':
+        sensor_response = sns_response[sns_response.index.\
+                get_level_values("sensor_id") <= KEY_sensor_pmts]
+        return sensor_response
+    elif sensor_type == 'FIBRES':
+        sensor_response = sns_response[sns_response.index.\
+                get_level_values("sensor_id") > KEY_sensor_fibres]
+        return sensor_response
+    else:
+        sensor_response = sns_response[in_range(
+        sns_response.index.get_level_values("sensor_id"), *SIPM_ids)]
+        return sensor_response
+
+
+def sensor_response_ti(sensor_response : DataFrame)->DataFrame:
+    """ Takes a data frame representing a sensor reponse and integrates time"""
+
+    grouped_multiple         = sensor_response.groupby(
+                       ['event_id', 'sensor_id']).agg({'charge': ['sum']})
+    grouped_multiple.columns = ['tot_charge']
+    df                       = grouped_multiple.reset_index()
+    return df
+
+
+def event_sensor_response_ti(sensor_response : DataFrame,
+                             event_id        : int)->DataFrame:
+    """ Takes a data frame representing a sensor reponse,
+    integrates time and return the slice corresponding to event_id
+
+    """
+    df = sensor_response_ti(sensor_response)
+    return df[df.event_id == event_id]
+
+
+def sensor_number_response_ti(sensor_response : DataFrame,
+                              sensor_id       : int)->DataFrame:
+    """ Takes a data frame representing a sensor reponse,
+    integrates time and return the slice corresponding to sensor_id
+
+    """
+    df = sensor_response_ti(sensor_response)
+    return df[df.sensor_id == sensor_id]
+
+
+def mcparts_and_sensors_response(ifname : str,
+                                 setup : Setup)->Union[Tuple[DataFrame],bool]:
+    """Returns DataFrames with the responses of the sensors and the MCParts"""
+
+    try:
+        mcParts = load_mcparticles_df(ifname)
+    except:
+        print(f'Failed reading mcparticles ={ifname}')
+        return False
+    try:
+        sns_response  = load_mcsensor_response_df(ifname)
+    except:
+        print(f'Failed reading sns_response ={ifname}')
+        return False
+
+    try:
+        if setup.fibres:
+            energy_sensors_response = get_sensor_response(sns_response,
+                                      sensor_type = 'FIBRES')
+
+        else: #PMTs
+            energy_sensors_response = get_sensor_response(sns_response,
+                                      sensor_type = 'PMT')
+
+        #sns_response = load_mcsensor_response_df(ifname)
+    except:
+        print(f'Failed reading energy_sensors_response: file ={ifname}')
+        return False
+    try:
+        sipm_response               = get_sensor_response(sns_response,
+                                      sensor_type = 'SIPM')
+    except:
+        print(f'Failed reading sipm_response: file ={ifname}')
+        return False
+
+    return mcParts, energy_sensors_response, sipm_response
+
+
+def get_s1(energy_sensors_response : DataFrame)->Series:
+    """Add the energy before the 1st mus (S1)"""
+    return energy_sensors_response[\
+           energy_sensors_response.time < S1_time].\
+           groupby('event_id').charge.sum()
+
+
+def get_s2(energy_sensors_response : DataFrame)->Series:
+    """Add the energy after the 1st mus (S2)"""
+    return energy_sensors_response[\
+           energy_sensors_response.time > S1_time].\
+           groupby('event_id').charge.sum()
+
+
+def get_qtot(sipmdf: DataFrame, setup : Setup)->Series:
+    """Compute the charge of SiPMs above a threshold"""
+    return sipmdf[sipmdf.tot_charge > setup.qTh].\
+                  groupby('event_id').tot_charge.sum()
+
+
+def get_q(sipmevt : DataFrame, ix : int, setup : Setup)->float:
+    """Return the charge of the sipm with index ix in event sipmevt"""
+    if ix != NN:
+
+        try:
+            q = sipmevt[sipmevt.sensor_id==ix].tot_charge.values[0]
+        except IndexError:
+            print(f'Warning no charge in SiPM with index ={ix}')
+            q = 0
+    else:
+        q = 0
+    return q * setup.sipmPDE * setup.maskPDE
+
+
+def get_pos(vz : np.array, vq : np.array)->float:
+    """Computes baricenter as the product of position vz and charge vq"""
+    return np.dot(vz, vq) / np.sum(vq)
+
+
+def get_position(event_list : List,
+                 sipmdf     : DataFrame,
+                 sipm_map   : DataFrame,
+                 setup      : Setup,
+                 ic         : int = 1000)->DataFrame:
+    """
+    Computes the (x,y) position of the event:
+    digital algorithm: - position of the SiPM with max charge
+    analog  algorithm: baricenter using (l,r) and (u,p) of qmax
+
+    """
+    pq = PosQ(event_list)
+
+    for ii, i in enumerate(event_list):
+        if ii%ic == 0:
+            print(f' event = {ii} event number = {i}')
+
+        evt          = sipmdf[sipmdf.event_id==i]
+        pq.qMax[ii]  = evt.tot_charge.max()
+        iqmax        = evt[evt.tot_charge==pq.qMax[ii]].sensor_id.values[0]
+
+        qmaxdf                   = sipm_map[sipm_map.sensor_id==iqmax]
+        pq.xMax[ii], pq.yMax[ii] =  qmaxdf.x.values[0], qmaxdf.y.values[0]
+        xl, xr                   =  qmaxdf.xl.values[0], qmaxdf.xr.values[0]
+        yu, yd                   =  qmaxdf.yu.values[0], qmaxdf.yd.values[0]
+
+        pq.qL[ii] = get_q(evt, qmaxdf.id_xl.values[0], setup)
+        pq.qR[ii] = get_q(evt, qmaxdf.id_xr.values[0], setup)
+        pq.qU[ii] = get_q(evt, qmaxdf.id_yu.values[0], setup)
+        pq.qD[ii] = get_q(evt, qmaxdf.id_yd.values[0], setup)
+
+        pq.xPos[ii] = get_pos(np.array([pq.xMax[ii], xl, xr]),
+                             np.array([pq.qMax[ii], pq.qL[ii], pq.qR[ii]]))
+        pq.yPos[ii] = get_pos(np.array([pq.yMax[ii], yu, yd]),
+                             np.array([pq.qMax[ii], pq.qU[ii], pq.qD[ii]]))
+        pq.rPos[ii] = np.sqrt(pq.yPos[ii]**2)+ np.sqrt(pq.xPos[ii]**2)
+
+    return pd.DataFrame(pq.to_dict()).set_index('event_id')
+
+
+def diff_pos(truedf : DataFrame, pqdf : DataFrame)->DataFrame:
+    """
+    Compute the difference between true and estimated positions
+    truedf is the data frame with true positions
+    posdf  is the data frame with estimated positions
+
+    """
+    DX = {'event_id' : truedf.index,
+          'dxPos'    : truedf.true_x.values - pqdf.xPos.values,
+          'dyPos'    : truedf.true_y.values - pqdf.yPos.values,
+          'dxMax'    : truedf.true_x.values - pqdf.xMax.values,
+          'dyMax'    : truedf.true_y.values - pqdf.yMax.values}
+    dxdf = pd.DataFrame(DX)
+    return dxdf.set_index('event_id')

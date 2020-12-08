@@ -19,14 +19,34 @@ import invisible_cities.core.system_of_units  as units
 from invisible_cities.core.core_functions     import in_range
 
 
+def histo1d(var, varmin, varmax, xlabel, ylabel,
+        bins=10, alpha=0.6, color='g'):
+
+    plt.hist(var, bins=bins, alpha=alpha, color=color)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+
+def histos1d(vars, varmins, varmaxs, xlabels, ylabels,
+              bins, alphas, colors,
+              splt=(1,2), figsize=(10,10)):
+
+    fig = plt.figure(figsize=figsize)
+
+    for i, var in enumerate(vars):
+        ax = plt.subplot(*splt,i+1)
+        histo1d(var, varmins[i], varmaxs[i], xlabels[i], ylabels[i],
+        bins[i], alphas[i], colors[i])
+    plt.show()
+
+
 
 def histo_df(df, var, varmin, varmax, xlabel, ylabel,
              bins=10, alpha=0.6, color='g'):
 
     df1 = df[in_range(df[var], varmin, varmax)]
-    plt.hist(df1[var].values, bins=bins, alpha=alpha, color=color)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
+    histo1d(df1[var].values, varmin, varmax, xlabel, ylabel,
+        bins, alpha, color)
 
 
 def histos_df(df, vars, varmins, varmaxs, xlabels, ylabels,
