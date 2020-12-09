@@ -66,13 +66,8 @@ def sipm_response_(sipm_response):
 
 def test_Setup():
     setup = Setup()
-    assert setup.name              == 'NEXT100_PMTs_sipmPDE_1_maskPDE_1_qTh_0'
-    assert setup.sipmPDE           == 1.0
-    assert setup.maskPDE           == 1.0
-    assert setup.qTh               == 0.
-    assert setup.maskConfig        == "FLEX100_M6_O6"
-    assert setup.mapDIR            == "flexmaps"
-    assert setup.fibres            == False
+    name ='PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0_FLEX100_M6_O6'
+    assert setup.name == name
 
 
 def test_get_evt_true_positions_df(mc_sns_sipm_map):

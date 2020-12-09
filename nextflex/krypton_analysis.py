@@ -37,6 +37,8 @@ def histos1d(vars, varmins, varmaxs, xlabels, ylabels,
         ax = plt.subplot(*splt,i+1)
         histo1d(var, varmins[i], varmaxs[i], xlabels[i], ylabels[i],
         bins[i], alphas[i], colors[i])
+
+    plt.tight_layout()
     plt.show()
 
 
@@ -60,6 +62,7 @@ def histos_df(df, vars, varmins, varmaxs, xlabels, ylabels,
         histo_df(df, var, varmins[i], varmaxs[i], xlabels[i], ylabels[i],
         bins[i], alphas[i], colors[i])
 
+    plt.tight_layout()
     plt.show()
 
 
@@ -97,22 +100,60 @@ def kr_point_resolution(krdst, xlim, bins=100, figsize=(10,10),
                  alpha=alpha, label=f'\u03C3 = {std:5.2f} mm')
         plt.xlabel(f'{var} (mm)')
         plt.legend(loc='upper left')
+    plt.tight_layout()
+    plt.show()
+
+
+def kr_point_resolution2(krdst, xlim, bins=100, figsize=(10,10),
+                        alpha=0.6, pitch=15):
+    """Plots the resolution for Krypton: (xmax-xtrue), (xpos-xtrue),
+    same for y
+
+    """
+    fig = plt.figure(figsize=figsize)
+
+    varx =['dxMax', 'dyMax','dxPos', 'dyPos']
+
+    xmin = xlim[0]
+    xmax = xlim[1]
+
+
+    for i,var in enumerate(varx):
+        ax      = fig.add_subplot(2, 2, i+1)
+        kfid = krdst[in_range(krdst[var], xmin, xmax)]
+        dx = kfid[var]
+        hx = krdst[var]
+
+        if var == 'dxPos' or var == 'dyPos':
+            mu, std = norm.fit(dx)
+            x = np.linspace(xmin, xmax, 100)
+            p = norm.pdf(x, mu, std)
+            plt.plot(x, p, 'k', linewidth=2)
+        else:
+            std = pitch/np.sqrt(12)
+
+        plt.hist(hx, bins=bins, density=True, range=(-20,20),
+                 alpha=alpha, label=f'\u03C3 = {std:5.2f} mm')
+        plt.xlabel(f'{var} (mm)')
+        plt.legend(loc='upper left')
+    plt.tight_layout()
     plt.show()
 
 
 def q_sipm(krdst,  bins=100, figsize=(10,10), alpha=0.6):
     """Plots the qmax, ql,qr,qu,qd"""
 
-    Q = ['ql','qr','qu','qd']
+    Q = ['qL','qR','qU','qD']
     fig = plt.figure(figsize=figsize)
     ax      = fig.add_subplot(1, 2, 1)
-    plt.hist(krdst.qmax, bins=bins, density=True, alpha=alpha, label=f'qmax')
+    plt.hist(krdst.qMax, bins=bins, density=True, alpha=alpha, label=f'qmax')
     plt.legend()
     ax      = fig.add_subplot(1, 2, 2)
     for q in Q:
         plt.hist(krdst[q], bins=bins, density=True, alpha=alpha, label=f'{q}')
         plt.legend(loc='upper left')
 
+    plt.tight_layout()
     plt.show()
 
 
@@ -127,4 +168,5 @@ def q4_sipm(krdst,  bins=100, figsize=(10,10), alpha=0.6):
         plt.hist(krdst[q], bins=bins, density=True, alpha=alpha, label=f'{q}')
         plt.legend(loc='upper left')
 
+    plt.tight_layout()
     plt.show()

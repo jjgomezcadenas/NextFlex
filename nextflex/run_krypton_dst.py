@@ -14,37 +14,50 @@ from nextflex.krypton_dst import Setup
 from nextflex.krypton_dst import kr_dst
 from nextflex.krypton_dst import kr_join_dst
 
+def clean_csv(ddir):
+    os.chdir(ddir)
+    print(f'now in directory {os.getcwd()}')
+    print(f'removing .csv files')
+    os.system('rm *.csv')
+
+
 if __name__ == "__main__":
 
-    iPATH   = "/Users/jj/Development/flexData/"
-    VERBOSITY = True
+    # path to data directories
+    FDATA = os.environ['FLEXDATA']
+    print(f'path to data directories ={FDATA}')
 
-    setup = Setup(name = 'FLEX100_M6_O6_thr_0_nomem_el1bar',
-                  sipmPDE    = 0.4,
-                  maskPDE    = 1.0,  # no membrane
-                  qTh        = 0.0,
-                  maskConfig = "FLEX100_M6_O6", # height 6 mm hole 6 mm
-                  mapDIR     = "flexmaps")
+    # define setup
+    setup = Setup(sipmPDE    = 0.4,
+              maskPDE    = 0.4,
+              qTh        = 5.0,
+              tpConfig   = "FLEX100_M6_O6_EL8bar_memb")
+    print(setup)
 
-    ifnames = glob.glob(f"{iPATH}/{setup.maskConfig}/*.h5")
+    # clean csv files
+    ddir = f"{FDATA}/{setup.tpConfig}"
+    clean_csv(ddir)
 
-    if VERBOSITY:
-        print(f"{len(ifnames)} input file names ...\n")
-        for ifname in ifnames:
-            print(ifname)
-        #print(get_event_numbers_in_file(ifname))
+    # collect .h5 files
+    ifnames = glob.glob(f"{ddir}/*.h5")
+    print(f'found {len(ifnames)} files')
 
-    sipm_map = pd.read_csv(f'{iPATH}/{setup.mapDIR}/sipm_map.csv')
-    print(sipm_map)
+    # sipm map
+    mapFile       = os.path.join(FDATA,setup.mapDIR, 'sipm_map.csv')
+    sipm_map      = pd.read_csv(mapFile)
 
-    gf, bf = kr_dst(ifnames, sipm_map)
-    print(f'good files ={gf}')
-    print(f'bad files ={bf}')
+    # krdsts (csv files)
+    gf, bf = kr_dst(ifnames, sipm_map, setup, ic=10)
+    print(f'good files ={len(gf)}')
+    print(f'bad files ={len(bf)}')
 
-    ifnames = glob.glob(f"{iPATH}/{setup.maskConfig}/*.csv")
-    ofile = f"{iPATH}/krdst_{setup.name}.csv"
-
-    krdf, BF = kr_join_dst(ifnames, verbose=False)
-    print(f'bad files ={BF}')
-    print(krdf)
+    # collect csv files
+    ifnames2 = glob.glob(f"{FDATA}/{setup.tpConfig}/*.csv")
+    print(f'found {len(ifnames2)} files')
+    ofile_name = f"{setup.name}.csv"
+    ofile = f"{FDATA}/kdsts/{ofile_name}"
+    print(f"Path to ofile = {ofile}")
+    krdf, BF = kr_join_dst(ifnames2, verbose=False)
+    print(f'bad files ={len(BF)}')
+    #print(krdf)
     krdf.to_csv(ofile)

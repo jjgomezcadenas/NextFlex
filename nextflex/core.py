@@ -44,13 +44,35 @@ class NNN:
 
 @dataclass
 class Setup:
-    name              : str   = 'NEXT100_PMTs_sipmPDE_1_maskPDE_1_qTh_0'
     sipmPDE           : float = 1.0
     maskPDE           : float = 1.0
     qTh               : float = 0.0
-    maskConfig        : str   = "FLEX100_M6_O6" # means thickness 6 mm hole 6mm
+    tpConfig          : str   = "FLEX100_M6_O6" # means thickness 6 mm hole 6mm
     mapDIR            : str   = "flexmaps" # where to find the SiPM map
     fibres            : bool  = False
+
+    def __post_init__(self):
+        if self.fibres:
+            ens = 'Fibres'
+        else:
+            ens ="PMTs"
+        name      = f"{ens}_sipmPDE_{self.sipmPDE}"
+        name      = f"{name}_maskPDE_{self.maskPDE}_qTh_{self.qTh}"
+        self.name = f"{name}_{self.tpConfig}"
+
+    def __repr__(self):
+        s = f"""
+        Setup <{self.name}>:
+        tracking plane configuration = {self.tpConfig}
+        sipm PDE                     = {self.sipmPDE}
+        transmission of teflon masks = {self.maskPDE}
+        charge threshold             = {self.qTh}
+        Fibres?                      = {self.fibres}
+        """
+        return s
+
+    def __str__(self):
+        return self.__repr__()
 
 
 @dataclass
@@ -256,8 +278,7 @@ def get_pos(vz : np.array, vq : np.array)->float:
 def get_position(event_list : List,
                  sipmdf     : DataFrame,
                  sipm_map   : DataFrame,
-                 setup      : Setup,
-                 ic         : int = 1000)->DataFrame:
+                 setup      : Setup)->DataFrame:
     """
     Computes the (x,y) position of the event:
     digital algorithm: - position of the SiPM with max charge
@@ -267,12 +288,11 @@ def get_position(event_list : List,
     pq = PosQ(event_list)
 
     for ii, i in enumerate(event_list):
-        if ii%ic == 0:
-            print(f' event = {ii} event number = {i}')
 
         evt          = sipmdf[sipmdf.event_id==i]
         pq.qMax[ii]  = evt.tot_charge.max()
         iqmax        = evt[evt.tot_charge==pq.qMax[ii]].sensor_id.values[0]
+        pq.qMax[ii]  = pq.qMax[ii] * setup.sipmPDE * setup.maskPDE
 
         qmaxdf                   = sipm_map[sipm_map.sensor_id==iqmax]
         pq.xMax[ii], pq.yMax[ii] =  qmaxdf.x.values[0], qmaxdf.y.values[0]
