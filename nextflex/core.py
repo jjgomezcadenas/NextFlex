@@ -85,7 +85,7 @@ class PosQ:
         self.yMax = np.zeros(shape=llen, dtype=float)
         self.yPos = np.zeros(shape=llen, dtype=float)
         self.rPos = np.zeros(shape=llen, dtype=float)
-
+        self.Qtot = np.zeros(shape=llen, dtype=float)
         self.qMax = np.zeros(shape=llen, dtype=float)
         self.qL   = np.zeros(shape=llen, dtype=float)
         self.qR   = np.zeros(shape=llen, dtype=float)
@@ -99,6 +99,7 @@ class PosQ:
             'xPos': self.xPos,
             'yPos': self.yPos,
             'rPos': self.rPos,
+            'Qtot': self.Qtot,
             'qMax': self.qMax,
             'qL'  : self.qL,
             'qR'  : self.qR,
@@ -249,11 +250,53 @@ def get_s2(energy_sensors_response : DataFrame)->Series:
            energy_sensors_response.time > S1_time].\
            groupby('event_id').charge.sum()
 
+def get_Q(Q: np.array, setup : Setup)->np.array:
+    """
+    Compute the charge of SiPMs after fluctuations and
+    threshold, for SiPMs in a given event
+
+    Q is an array which contains the
+    number of photons that hit the sensors (or the masks) for each
+    sensor
+
+    """
+
+    # if the PDE of the SiPM is less than one we need to fluctuate
+    # these numbers according to Poisson and then multiply by the PDE
+    # same applies for the "PDE" of the masks
+    if setup.sipmPDE != 1:
+        Q = np.array([np.random.poisson(xi) for xi in Q]) * setup.sipmPDE
+
+    if setup.maskPDE != 1:
+        Q = np.array([np.random.poisson(xi) for xi in Q]) * setup.maskPDE
+
+    # if there is a threshold we apply it now.
+    if setup.qTh > 0:
+        Q = np.array([q if q > setup.qTh else 0 for q in Q])
+
+    return Q
+
 
 def get_qtot(sipmdf: DataFrame, setup : Setup)->Series:
     """Compute the charge of SiPMs above a threshold"""
     return sipmdf[sipmdf.tot_charge > setup.qTh].\
                   groupby('event_id').tot_charge.sum()
+
+def get_iq(sipmevt : DataFrame, ix : int)->int:
+    """
+    Return the position in array of the sipm with index
+    ix in event sipmevt
+
+    """
+    if ix != NN:
+        try:
+            iq = sipmevt[sipmevt.sensor_id==ix].index[0]
+        except:
+            print(f'Warning no charge in SiPM with index ={ix}')
+            iq = -1
+    else:
+        iq = -1
+    return iq
 
 
 def get_q(sipmevt : DataFrame, ix : int, setup : Setup)->float:
@@ -267,7 +310,7 @@ def get_q(sipmevt : DataFrame, ix : int, setup : Setup)->float:
             q = 0
     else:
         q = 0
-    return q * setup.sipmPDE * setup.maskPDE
+    return q
 
 
 def get_pos(vz : np.array, vq : np.array)->float:
@@ -285,24 +328,56 @@ def get_position(event_list : List,
     analog  algorithm: baricenter using (l,r) and (u,p) of qmax
 
     """
+
     pq = PosQ(event_list)
 
     for ii, i in enumerate(event_list):
 
-        evt          = sipmdf[sipmdf.event_id==i]
-        pq.qMax[ii]  = evt.tot_charge.max()
-        iqmax        = evt[evt.tot_charge==pq.qMax[ii]].sensor_id.values[0]
-        pq.qMax[ii]  = pq.qMax[ii] * setup.sipmPDE * setup.maskPDE
+        evt  = sipmdf[sipmdf.event_id==i]
+        Q    = get_Q(evt.tot_charge.values, setup)
+
+        pq.Qtot[ii]  = Q.sum()
+        qmax         = evt.tot_charge.max()
+        iqmax        = evt[evt.tot_charge==qmax].sensor_id.values[0]
+        pq.qMax[ii]  = Q.max()
 
         qmaxdf                   = sipm_map[sipm_map.sensor_id==iqmax]
         pq.xMax[ii], pq.yMax[ii] =  qmaxdf.x.values[0], qmaxdf.y.values[0]
         xl, xr                   =  qmaxdf.xl.values[0], qmaxdf.xr.values[0]
         yu, yd                   =  qmaxdf.yu.values[0], qmaxdf.yd.values[0]
 
-        pq.qL[ii] = get_q(evt, qmaxdf.id_xl.values[0], setup)
-        pq.qR[ii] = get_q(evt, qmaxdf.id_xr.values[0], setup)
-        pq.qU[ii] = get_q(evt, qmaxdf.id_yu.values[0], setup)
-        pq.qD[ii] = get_q(evt, qmaxdf.id_yd.values[0], setup)
+        iqL = get_iq(evt, qmaxdf.id_xl.values[0])
+        iqR = get_iq(evt, qmaxdf.id_xr.values[0])
+        iqU = get_iq(evt, qmaxdf.id_yu.values[0])
+        iqD = get_iq(evt, qmaxdf.id_yd.values[0])
+
+        pq.qL[ii] = Q[iqL] if iqL > 0 else 0
+        pq.qR[ii] = Q[iqR] if iqR > 0 else 0
+        pq.qU[ii] = Q[iqU] if iqU > 0 else 0
+        pq.qD[ii] = Q[iqD] if iqD > 0 else 0
+
+        # if iqL < 0:
+        #      pq.qL[ii] = 0
+        # else:
+        #      pq.qL[ii] = Q[iqL]
+        # if iqR < 0:
+        #     pq.qR[ii] = 0
+        # else:
+        #     pq.qR[ii] = Q[iqR]
+        # if iqU < 0:
+        #     pq.qU[ii] = 0
+        # else:
+        #      pq.qU[ii] = Q[iqU]
+        # if iqD < 0:
+        #      pq.qD[ii] = 0
+        # else:
+        #      pq.qD[ii] = Q[iqD]
+
+
+        # pq.qL[ii] = get_q(evt, qmaxdf.id_xl.values[0], setup)
+        # pq.qR[ii] = get_q(evt, qmaxdf.id_xr.values[0], setup)
+        # pq.qR[ii] = get_q(evt, qmaxdf.id_yu.values[0], setup)
+        # pq.qR[ii] = get_q(evt, qmaxdf.id_yd.values[0], setup)
 
         pq.xPos[ii] = get_pos(np.array([pq.xMax[ii], xl, xr]),
                              np.array([pq.qMax[ii], pq.qL[ii], pq.qR[ii]]))

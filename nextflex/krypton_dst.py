@@ -47,12 +47,14 @@ def get_krdst(dsts     : List[DataFrame],
              setup    : Setup):
 
     mcParts, energy_sensors_response, sipm_response = dsts
+
+    # integrate time for the SiPMs.
     sipmdf       = sensor_response_ti(sipm_response)
 
     krdf         = get_evt_true_positions_and_energy(mcParts)
     krdf['S1e']  = get_s1(energy_sensors_response)
     krdf['S2e']  = get_s2(energy_sensors_response)
-    krdf['Qtot'] = get_qtot(sipmdf, setup)
+    # krdf['Qtot'] = get_qtot(sipmdf, setup)
 
     pq   = get_position(krdf.index, sipmdf, sipm_map, setup)
     dxdf = diff_pos(krdf, pq)

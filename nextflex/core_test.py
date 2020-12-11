@@ -14,7 +14,7 @@ import invisible_cities.core.system_of_units  as units
 from invisible_cities.core.core_functions     import in_range
 
 from invisible_cities.io.mcinfo_io import load_mcparticles_df
-
+from scipy.stats   import norm
 from nextflex.core import Setup
 from nextflex.core import get_evt_true_positions_df
 from nextflex.core import get_evt_true_positions_and_energy
@@ -30,6 +30,7 @@ from nextflex.core import get_q
 from nextflex.core import get_pos
 from nextflex.core import get_position
 from nextflex.core import diff_pos
+from nextflex.core import get_Q
 
 
 def true_pos_(evt_truePos):
@@ -191,6 +192,23 @@ def test_get_s1_s2(mc_sns_sipm_map):
 
     s2 = get_s2(pmt_response)
     assert np.all(in_range(s2, 3000, 9000)) # Range of S2 values for krypton
+
+
+
+def test_get_Q(mc_sns_sipm_map):
+    """Check value of Q follows poisson"""
+    tsu             = mc_sns_sipm_map
+    sipm_response   = get_sensor_response(tsu.sns_response_pmt,
+                                          sensor_type = 'SIPM')
+    setup    = Setup()
+    sipm_evt = event_sensor_response_ti(sipm_response, event_id=100000)
+    Q        = sipm_evt.tot_charge.values
+    QM       = np.array([(get_Q(Q, setup2)).max() for i in np.arange(100) ])
+    DQM      =np.array([(Q.max() - qmx) /Q.max()  for qmx in QM])
+    mu, std = norm.fit(DQM)
+
+    assert np.abs(mu) * 100 < 5
+    assert std * 100 < 150
 
 
 def test_get_qtot(mc_sns_sipm_map):
