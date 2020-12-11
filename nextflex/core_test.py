@@ -200,10 +200,10 @@ def test_get_Q(mc_sns_sipm_map):
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
                                           sensor_type = 'SIPM')
-    setup    = Setup()
+    setup    = Setup(sipmPDE=0.999999)
     sipm_evt = event_sensor_response_ti(sipm_response, event_id=100000)
     Q        = sipm_evt.tot_charge.values
-    QM       = np.array([(get_Q(Q, setup2)).max() for i in np.arange(100) ])
+    QM       = np.array([(get_Q(Q, setup)).max() for i in np.arange(100) ])
     DQM      =np.array([(Q.max() - qmx) /Q.max()  for qmx in QM])
     mu, std = norm.fit(DQM)
 

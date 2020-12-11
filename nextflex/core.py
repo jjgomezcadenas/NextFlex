@@ -290,7 +290,7 @@ def get_iq(sipmevt : DataFrame, ix : int)->int:
     """
     if ix != NN:
         try:
-            iq = sipmevt[sipmevt.sensor_id==ix].index[0]
+            iq = sipmevt[sipmevt.sensor_id==ix].index[0] - sipmevt.index[0]
         except:
             print(f'Warning no charge in SiPM with index ={ix}')
             iq = -1
@@ -336,20 +336,31 @@ def get_position(event_list : List,
         evt  = sipmdf[sipmdf.event_id==i]
         Q    = get_Q(evt.tot_charge.values, setup)
 
+        # print(f'evt = {i}')
+        # print(f'len of evt-- {len(evt.index)}')
+        # print(f'leng of Q ={len(Q)}')
+
         pq.Qtot[ii]  = Q.sum()
         qmax         = evt.tot_charge.max()
         iqmax        = evt[evt.tot_charge==qmax].sensor_id.values[0]
         pq.qMax[ii]  = Q.max()
+
+        # print(f'qmax ={qmax}, iqmax = {iqmax}')
 
         qmaxdf                   = sipm_map[sipm_map.sensor_id==iqmax]
         pq.xMax[ii], pq.yMax[ii] =  qmaxdf.x.values[0], qmaxdf.y.values[0]
         xl, xr                   =  qmaxdf.xl.values[0], qmaxdf.xr.values[0]
         yu, yd                   =  qmaxdf.yu.values[0], qmaxdf.yd.values[0]
 
+        # print(f'qmaxdf = {qmaxdf}')
+
+        # print(f' id_xl = {qmaxdf.id_xl.values[0]}')
         iqL = get_iq(evt, qmaxdf.id_xl.values[0])
         iqR = get_iq(evt, qmaxdf.id_xr.values[0])
         iqU = get_iq(evt, qmaxdf.id_yu.values[0])
         iqD = get_iq(evt, qmaxdf.id_yd.values[0])
+
+        # print(f'iqL ={iqL}')
 
         pq.qL[ii] = Q[iqL] if iqL > 0 else 0
         pq.qR[ii] = Q[iqR] if iqR > 0 else 0
