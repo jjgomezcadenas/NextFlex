@@ -67,7 +67,7 @@ def sipm_response_(sipm_response):
 
 def test_Setup():
     setup = Setup()
-    name ='PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0_FLEX100_M6_O6'
+    name ='FLEX100_M6_O6_PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0'
     assert setup.name == name
 
 
@@ -227,7 +227,7 @@ def test_get_q_and_get_pos(mc_sns_sipm_map):
 
     tsu           = mc_sns_sipm_map
     krdf          = get_evt_true_positions_and_energy(tsu.mcParts)
-    sipm_response   = get_sensor_response(tsu.sns_response_pmt,
+    sipm_response  = get_sensor_response(tsu.sns_response_pmt,
                                           sensor_type = 'SIPM')
 
     sipmdf        = sensor_response_ti(sipm_response)

@@ -23,7 +23,18 @@ from nextflex.core import sensor_response_ti
 from nextflex.core import event_sensor_response_ti
 from nextflex.core import sensor_number_response_ti
 from nextflex.core import mcparts_and_sensors_response
+from nextflex.krypton_dst import prepare_tmpdir
+from nextflex.krypton_dst import collect_h5files
+from nextflex.krypton_dst import get_file_name
 
 
-def test_dummy():
-    return True
+def test_get_file_name():
+    setup = Setup()
+    file = get_file_name("test.h5", setup)
+    assert file ==   f"{setup.name}/test.csv"
+
+
+def test_prepare_tmpdir(FDATA):
+    setup = Setup()
+    tmpdir = prepare_tmpdir(FDATA, setup)
+    assert tmpdir == f"{FDATA}/{setup.tpConfig}/{setup.name}"

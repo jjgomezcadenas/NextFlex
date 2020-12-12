@@ -58,7 +58,7 @@ class Setup:
             ens ="PMTs"
         name      = f"{ens}_sipmPDE_{self.sipmPDE}"
         name      = f"{name}_maskPDE_{self.maskPDE}_qTh_{self.qTh}"
-        self.name = f"{name}_{self.tpConfig}"
+        self.name = f"{self.tpConfig}_{name}"
 
     def __repr__(self):
         s = f"""
@@ -366,29 +366,6 @@ def get_position(event_list : List,
         pq.qR[ii] = Q[iqR] if iqR > 0 else 0
         pq.qU[ii] = Q[iqU] if iqU > 0 else 0
         pq.qD[ii] = Q[iqD] if iqD > 0 else 0
-
-        # if iqL < 0:
-        #      pq.qL[ii] = 0
-        # else:
-        #      pq.qL[ii] = Q[iqL]
-        # if iqR < 0:
-        #     pq.qR[ii] = 0
-        # else:
-        #     pq.qR[ii] = Q[iqR]
-        # if iqU < 0:
-        #     pq.qU[ii] = 0
-        # else:
-        #      pq.qU[ii] = Q[iqU]
-        # if iqD < 0:
-        #      pq.qD[ii] = 0
-        # else:
-        #      pq.qD[ii] = Q[iqD]
-
-
-        # pq.qL[ii] = get_q(evt, qmaxdf.id_xl.values[0], setup)
-        # pq.qR[ii] = get_q(evt, qmaxdf.id_xr.values[0], setup)
-        # pq.qR[ii] = get_q(evt, qmaxdf.id_yu.values[0], setup)
-        # pq.qR[ii] = get_q(evt, qmaxdf.id_yd.values[0], setup)
 
         pq.xPos[ii] = get_pos(np.array([pq.xMax[ii], xl, xr]),
                              np.array([pq.qMax[ii], pq.qL[ii], pq.qR[ii]]))

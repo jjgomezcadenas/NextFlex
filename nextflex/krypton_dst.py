@@ -65,6 +65,7 @@ def get_krdst(dsts     : List[DataFrame],
 
 
 def kr_dst(ifnames           : List[str],
+           FDATA             : str,
            sipm_map          : DataFrame,
            setup             : Setup,
            ic                : int   = 100):
@@ -79,14 +80,6 @@ def kr_dst(ifnames           : List[str],
     5. charge in the SiPMs (max, left, right, up, down)
 
     """
-
-    def get_file_name(ifname):
-        lname = ifname.split('.')
-        t1 = ".".join(lname[1:-1])
-        t = "".join([lname[0],t1])
-        f =f"{t}.csv"
-        return f
-
 
     GF =[]
     BF =[]
@@ -104,10 +97,10 @@ def kr_dst(ifnames           : List[str],
                 GF.append(ifname)
 
                 krdst = get_krdst(dsts, sipm_map, setup)
-                file  = get_file_name(ifname)
+                file  = get_file_name(ifname, FDATA, setup)
                 if ii%ic == 0:
                     print(f'saving file {file}, with {len(krdst.index)} events')
-                krdst.to_csv(file)
+                krdst.to_csv(f"{file}")
             ii+=1
     return GF, BF
 
@@ -136,3 +129,49 @@ def kr_join_dst(ifnames, verbose=False, ic=100):
             krdst = krdst.append(kdst)
 
     return krdst, BF
+
+
+def get_file_name(ifname, FDATA, setup):
+    """Get the csv file names from h5 file names"""
+    xname  = ifname.split("/")
+    h5 = xname[-1]
+    h5name = h5.split(".")
+    fs = ".".join(h5name[0:-1])
+    fcsv =f"{fs}.csv"
+    tmpdir = f"{FDATA}/{setup.tpConfig}/{setup.name}"
+    file = f"{tmpdir}/{fcsv}"
+
+    return file
+
+
+def prepare_tmpdir(FDATA, setup):
+    """Prepare a temporari directory to store cvs files """
+    tmpdir = f"{FDATA}/{setup.tpConfig}/{setup.name}"
+    if not os.path.exists(tmpdir):
+        print(f"creating dir {tmpdir}")
+        os.makedirs(tmpdir)
+    else:
+        print(f"cleaning up .csv files from  dir {tmpdir}")
+        try:
+            os.system(f'rm -r {tmpdir}/*.csv')
+        except:
+            print("No csv files found in directory")
+    return tmpdir
+
+
+def collect_h5files(FDATA, setup):
+    """Collects h5 files to run kr_dst over them"""
+
+    ddir = f"{FDATA}/{setup.tpConfig}"
+    ifnames = glob.glob(f"{ddir}/*.h5")
+    return ifnames
+
+def collect_csvfiles(FDATA, setup):
+    """Collects csv files to run kr_dst over them"""
+
+    ddir = f"{FDATA}/{setup.tpConfig}/{setup.name}"
+    ifnames = glob.glob(f"{ddir}/*.csv")
+    return ifnames
+
+# # collect csv files
+# ifnames2 = glob.glob(f"{FDATA}/{setup.tpConfig}/*.csv")

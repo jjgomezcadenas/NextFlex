@@ -120,14 +120,20 @@ def kr_point_resolution2(krdst, xlim, bins=100, figsize=(10,10),
 
     for i,var in enumerate(varx):
         ax      = fig.add_subplot(2, 2, i+1)
+        #print(var)
         kfid = krdst[in_range(krdst[var], xmin, xmax)]
+        #print('dx')
         dx = kfid[var]
+        #print('hx')
         hx = krdst[var]
 
         if var == 'dxPos' or var == 'dyPos':
             mu, std = norm.fit(dx)
+            #print(mu, std)
             x = np.linspace(xmin, xmax, 100)
+            #print(len(x))
             p = norm.pdf(x, mu, std)
+            #print(len(p))
             plt.plot(x, p, 'k', linewidth=2)
         else:
             std = pitch/np.sqrt(12)
