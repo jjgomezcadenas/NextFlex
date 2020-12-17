@@ -26,10 +26,10 @@ if __name__ == "__main__":
     print(f'path to data directories ={FDATA}')
 
     # define setup
-    setup = Setup(sipmPDE    = 1.0,
-                  maskPDE    = 1.0,
-                  qTh        = 0.0,
-                  tpConfig   = "FLEX100_D3_M2_O6_EL8bar")
+    setup = Setup(sipmPDE    = 0.4,
+                  maskPDE    = 0.4,
+                  qTh        = 1.0,
+                  tpConfig   = "FLEX100_M6_O4_EL8bar")
     print(setup)
     tmpdir = prepare_tmpdir(FDATA, setup)
 

@@ -44,19 +44,40 @@ class NNN:
 
 @dataclass
 class Setup:
-    sipmPDE           : float = 1.0
-    maskPDE           : float = 1.0
-    qTh               : float = 0.0
-    tpConfig          : str   = "FLEX100_M6_O6" # means thickness 6 mm hole 6mm
-    mapDIR            : str   = "flexmaps" # where to find the SiPM map
-    fibres            : bool  = False
+    flexDATA  : str   = "/Users/jj/Development/flexdata/"
+    sipmPDE   : float = 1.0
+    maskPDE   : float = 1.0
+    qTh       : float = 0.0
+    tpConfig  : str   = "FLEX100_M6_O6" # means thickness 6 mm hole 6mm
+    mapDIR    : str   = "flexmaps" # where to find the SiPM map
+
 
     def __post_init__(self):
-        if self.fibres:
-            ens = 'Fibres'
+        self.iPATH =  f"{self.flexDATA}/{self.tpConfig}"
+        self.ifnames = glob.glob(f"{self.iPATH}/*.h5")
+        self.pitch = find_pitch(self.ifnames[0])
+
+        if self.pitch == 15.55:
+            self.sipm_map_name =f"sipm_map_15.6_mm.csv"
+        elif self.pitch == 10:
+            self.sipm_map_name =f"sipm_map_10.0_mm.csv"
         else:
-            ens ="PMTs"
-        name      = f"{ens}_sipmPDE_{self.sipmPDE}"
+            print(f"ERROR, there is no sipm map for pitch ={self.pitch}")
+            sys.exit(0)
+
+        self.mPath = f"{self.flexDATA}/{self.mapDIR}"
+
+        sns_types = get_sensor_types(self.ifnames[0])
+        sensors = np.unique(sns_types.sensor_name.values)
+        self.nesens = len(sns_types[sns_types.sensor_name == sensors[0]])
+        self.nsipm  = len(sns_types[sns_types.sensor_name == sensors[-1]])
+
+        if sensors[0] == 'PmtR11410':
+             self.esens= "PMTs"
+        else:
+            self.esens = 'Fibres'
+
+        name      = f"{self.esens}_sipmPDE_{self.sipmPDE}"
         name      = f"{name}_maskPDE_{self.maskPDE}_qTh_{self.qTh}"
         self.name = f"{self.tpConfig}_{name}"
 
@@ -67,7 +88,14 @@ class Setup:
         sipm PDE                     = {self.sipmPDE}
         transmission of teflon masks = {self.maskPDE}
         charge threshold             = {self.qTh}
-        Fibres?                      = {self.fibres}
+        energy sensors               = {self.esens}
+        pitch                        = {self.pitch}
+        number of energy sensors     = {self.nesens}
+        number of SiPMs              = {self.nsipm}
+        root directory               = {self.iPATH}
+        number of h5 files in dir    = {len(self.ifnames)}
+        sipm map at                  = {self.mPath}
+        sipm map name                = {self.sipm_map_name}
         """
         return s
 
@@ -106,6 +134,24 @@ class PosQ:
             'qU'  : self.qU,
             'qD'  : self.qD
         }
+
+
+
+def find_pitch(fileName : str)->float:
+    """
+    Find the pitch in the configuration of the MC file and returns it
+
+    """
+    def purge_list(lst):
+        return list(dict.fromkeys(lst))
+
+    mcConfig = load_mcconfiguration(fileName)
+    mcConfig.set_index("param_key", inplace = True)
+    par = mcConfig.loc["/Geometry/NextFlex/tp_sipm_pitchX"]
+    #print(par)
+    vals = purge_list(par.param_value.split(' '))
+    #print(float(vals[1]))
+    return float(vals[1])
 
 
 def get_evt_true_positions_df(mcParts : DataFrame)->DataFrame:
@@ -215,7 +261,7 @@ def mcparts_and_sensors_response(ifname : str,
         return False
 
     try:
-        if setup.fibres:
+        if setup.esens == "Fibres":
             energy_sensors_response = get_sensor_response(sns_response,
                                       sensor_type = 'FIBRES')
 

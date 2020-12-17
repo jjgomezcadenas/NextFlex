@@ -31,6 +31,7 @@ from nextflex.core import get_pos
 from nextflex.core import get_position
 from nextflex.core import diff_pos
 from nextflex.core import get_Q
+from nextflex.core import find_pitch
 
 
 def true_pos_(evt_truePos):
@@ -65,10 +66,66 @@ def sipm_response_(sipm_response):
     assert np.all(in_range(sipm_response.charge, 0, 200))
 
 
-def test_Setup():
-    setup = Setup()
-    name ='FLEX100_M6_O6_PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0'
+def test_Setup(FDATA):
+    setup = Setup(flexDATA = FDATA,
+                  sipmPDE  = 1.0,
+                  maskPDE  = 1.0,
+                  qTh      = 0.0,
+                  tpConfig = "FLEX100_M6_O6_P10.EL8bar")
+
+    name     = "FLEX100_M6_O6_P10.EL8bar_PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0"
+    esens    = "PMTs"
+    pitch    = 10.0
+    nesens   = 60
+    nsipm    = 7484
+    name_map = "sipm_map_10.0_mm.csv"
+
     assert setup.name == name
+    assert setup.esens == esens
+    assert setup.pitch == pitch
+    assert setup.nesens == nesens
+    assert setup.nsipm == nsipm
+    assert setup.sipm_map_name == name_map
+
+
+    setup = Setup(flexDATA = FDATA,
+              sipmPDE  = 1.0,
+              maskPDE  = 1.0,
+              qTh      = 0.0,
+              tpConfig = "FLEX100_M6_O6")
+
+    name     = "FLEX100_M6_O6_PMTs_sipmPDE_1.0_maskPDE_1.0_qTh_0.0"
+    pitch    = 15.55
+    nsipm    = 3093
+    name_map = "sipm_map_15.6_mm.csv"
+    assert setup.name == name
+    assert setup.pitch == pitch
+    assert setup.nsipm == nsipm
+    assert setup.sipm_map_name == name_map
+
+    setup = Setup(flexDATA = FDATA,
+              sipmPDE  = 1.0,
+              maskPDE  = 1.0,
+              qTh      = 0.0,
+              tpConfig = "FLEX100F_M6_O6.EL8bar")
+
+    name     = "FLEX100F_M6_O6.EL8bar_Fibres_sipmPDE_1.0_maskPDE_1.0_qTh_0.0"
+    esens    = "Fibres"
+    nesens   = 1545
+
+    assert setup.name == name
+    assert setup.esens == esens
+    assert setup.nesens == nesens
+    
+
+def test_find_pitch(FDATA):
+    testFile      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.h5')
+    testFile2      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6_P10.Kr83.ACTIVE.3010.next.h5')
+
+    assert find_pitch(testFile) == 15.55
+    assert find_pitch(testFile2) == 10
 
 
 def test_get_evt_true_positions_df(mc_sns_sipm_map):

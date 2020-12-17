@@ -28,10 +28,14 @@ from nextflex.krypton_dst import collect_h5files
 from nextflex.krypton_dst import get_file_name
 
 
-def test_get_file_name():
-    setup = Setup()
-    file = get_file_name("test.h5", setup)
-    assert file ==   f"{setup.name}/test.csv"
+def test_get_file_name(FDATA):
+    setup   = Setup()
+    ifname  = 'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.h5'
+    csvname = 'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.csv'
+    path    = os.path.join(FDATA,"testData")
+    file    = get_file_name(ifname, path, setup)
+
+    assert file == f"{path}/{setup.tpConfig}/{setup.name}/{csvname}"
 
 
 def test_prepare_tmpdir(FDATA):
