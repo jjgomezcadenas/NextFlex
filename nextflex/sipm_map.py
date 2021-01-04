@@ -146,10 +146,17 @@ if __name__ == "__main__":
     print(f'path to data directories ={FDATA}')
 
     # define setup
-    setup = Setup(sipmPDE    = 1.0,
-                  maskPDE    = 1.0,
-                  qTh        = 0.0,
-                  tpConfig   = "FLEX100_M6_O6_P10.EL8bar")
+    # setup = Setup(sipmPDE    = 1.0,
+    #               maskPDE    = 1.0,
+    #               qTh        = 0.0,
+    #               tpConfig   = "FLEX100_M6_O6_P10.EL8bar")
+    # print(setup)
+
+    setup = Setup(flexDATA = FDATA,
+              sipmPDE  = 1.0,
+              maskPDE  = 1.0,
+              qTh      = 0.0,
+              tpConfig = "FLEX100_M6_O6")
     print(setup)
 
 

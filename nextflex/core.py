@@ -44,7 +44,7 @@ class NNN:
 
 @dataclass
 class Setup:
-    flexDATA  : str   = "/Users/jj/Development/flexdata/"
+    flexDATA  : str   = "/Users/jj/Development/flexdata"
     sipmPDE   : float = 1.0
     maskPDE   : float = 1.0
     qTh       : float = 0.0
@@ -65,7 +65,7 @@ class Setup:
             print(f"ERROR, there is no sipm map for pitch ={self.pitch}")
             sys.exit(0)
 
-        self.mPath = f"{self.flexDATA}/{self.mapDIR}"
+        self.mPath = f"{self.flexDATA}/{self.mapDIR}/{self.sipm_map_name}"
 
         sns_types = get_sensor_types(self.ifnames[0])
         sensors = np.unique(sns_types.sensor_name.values)
@@ -77,9 +77,12 @@ class Setup:
         else:
             self.esens = 'Fibres'
 
-        name      = f"{self.esens}_sipmPDE_{self.sipmPDE}"
-        name      = f"{name}_maskPDE_{self.maskPDE}_qTh_{self.qTh}"
-        self.name = f"{self.tpConfig}_{name}"
+        name        = f"{self.esens}_sipmPDE_{self.sipmPDE}"
+        name        = f"{name}_maskPDE_{self.maskPDE}_qTh_{self.qTh}"
+        self.name   = f"{self.tpConfig}_{name}"
+        self.tmpdir = f"{self.iPATH}/{self.name}"
+        ofile_name  = f"{self.name}.csv"
+        self.ofile  = f"{self.flexDATA}/kdsts/{ofile_name}"
 
     def __repr__(self):
         s = f"""
@@ -96,6 +99,7 @@ class Setup:
         number of h5 files in dir    = {len(self.ifnames)}
         sipm map at                  = {self.mPath}
         sipm map name                = {self.sipm_map_name}
+        output file                  = {self.ofile}
         """
         return s
 

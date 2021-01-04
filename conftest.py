@@ -5,8 +5,16 @@ import pandas as pd
 from   dataclasses import dataclass
 
 from pandas      import DataFrame
+from invisible_cities.io.mcinfo_io import load_mchits_df
 from invisible_cities.io.mcinfo_io import load_mcparticles_df
 from invisible_cities.io.mcinfo_io import load_mcsensor_response_df
+
+from nextflex.mctrue_functions     import McParticles
+from nextflex.mctrue_functions     import McHits
+from nextflex.mctrue_functions     import get_mc_hits
+from nextflex.reco_functions       import voxelize_hits
+from nextflex.mctrue_functions     import get_event_hits_from_mchits
+from nextflex.reco_functions       import get_voxels_as_list
 
 @dataclass
 class TestSetup:
@@ -38,3 +46,35 @@ def mc_sns_sipm_map(FDATA):
     sns_response_pmt  = load_mcsensor_response_df(testFile)
     sns_response_fib  = load_mcsensor_response_df(testFile2)
     return TestSetup(mcParts, sns_response_pmt, sns_response_fib, sipm_map)
+
+
+@pytest.fixture(scope='session')
+def bbonu_mc_particles(FDATA):
+    testFile      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
+    mcParticles  = load_mcparticles_df(testFile)
+    return McParticles(mcParticles.sort_index())
+
+
+@pytest.fixture(scope='session')
+def bbonu_mc_hits(FDATA):
+    testFile      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
+    mcHits  = load_mchits_df(testFile)
+    return McHits(mcHits.sort_index())
+
+
+@pytest.fixture(scope='session')
+def bbonu_hits_and_voxels(FDATA):
+    testFile      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
+    mcHits  = get_mc_hits(testFile)
+    t12     = get_event_hits_from_mchits(mcHits, event_id = 0)
+    vt12df  = voxelize_hits(t12, bin_size = 5, baryc = True)
+    return t12, vt12df
+
+# @pytest.fixture(scope='session')
+# def voxel_list(bbonu_hits_and_voxels):
+#
+#     _, voxelHits = bbonu_hits_and_voxels
+#     return get_voxels_as_list(voxelHits)

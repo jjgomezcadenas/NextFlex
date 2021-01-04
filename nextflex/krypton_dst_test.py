@@ -23,22 +23,15 @@ from nextflex.core import sensor_response_ti
 from nextflex.core import event_sensor_response_ti
 from nextflex.core import sensor_number_response_ti
 from nextflex.core import mcparts_and_sensors_response
-from nextflex.krypton_dst import prepare_tmpdir
-from nextflex.krypton_dst import collect_h5files
+#from nextflex.krypton_dst import prepare_tmpdir
+#from nextflex.krypton_dst import collect_h5files
 from nextflex.krypton_dst import get_file_name
 
 
 def test_get_file_name(FDATA):
-    setup   = Setup()
+    setup   = Setup(FDATA)
     ifname  = 'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.h5'
     csvname = 'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.csv'
     path    = os.path.join(FDATA,"testData")
-    file    = get_file_name(ifname, path, setup)
-
-    assert file == f"{path}/{setup.tpConfig}/{setup.name}/{csvname}"
-
-
-def test_prepare_tmpdir(FDATA):
-    setup = Setup()
-    tmpdir = prepare_tmpdir(FDATA, setup)
-    assert tmpdir == f"{FDATA}/{setup.tpConfig}/{setup.name}"
+    file    = get_file_name(ifname, setup)
+    assert file == f"{FDATA}/{setup.tpConfig}/{setup.name}/{csvname}"
