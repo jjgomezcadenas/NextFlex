@@ -66,7 +66,7 @@ class Setup:
             sys.exit(0)
 
         self.mPath = f"{self.flexDATA}/{self.mapDIR}/{self.sipm_map_name}"
-
+        self.analysis = f"{self.flexDATA}/analysis/{self.tpConfig}"
         sns_types = get_sensor_types(self.ifnames[0])
         sensors = np.unique(sns_types.sensor_name.values)
         self.nesens = len(sns_types[sns_types.sensor_name == sensors[0]])
@@ -96,6 +96,7 @@ class Setup:
         number of energy sensors     = {self.nesens}
         number of SiPMs              = {self.nsipm}
         root directory               = {self.iPATH}
+        analysis directory           = {self.analysis}
         number of h5 files in dir    = {len(self.ifnames)}
         sipm map at                  = {self.mPath}
         sipm map name                = {self.sipm_map_name}

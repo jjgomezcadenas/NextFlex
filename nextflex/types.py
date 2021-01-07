@@ -182,3 +182,34 @@ class VoxelHits:
         return s
 
     __str__ = __repr__
+
+
+@dataclass
+class GraphTracks:
+    """
+    Wrapper data class to give a type to the DataFrame
+    representing a collection of graph tracks
+
+    """
+    df       : DataFrame
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame
+
+        """
+        self.columns : Tuple[str] = ('event_id', 'nvox', 'tlength',
+        'x_e1', 'y_e1', 'z_e1', 'energy_e1', 'nvox_b1', 'energy_b1',
+        'x_e2', 'y_e2', 'z_e2', 'energy_e2', 'nvox_b2', 'energy_b2')
+
+        assert self.columns == tuple(self.df.columns)
+
+
+    def __repr__(self):
+        s = f"""<{get_class_name(self)}>
+        Columns = {self.columns}
+        """
+        return s
+
+    __str__ = __repr__

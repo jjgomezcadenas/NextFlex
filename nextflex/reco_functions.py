@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import networkx as nx
+import json
 import os
 
 from dataclasses import dataclass
@@ -43,17 +44,52 @@ class GTrack:
         self.extrema['e1'] = e1
         self.extrema['e2'] = e2
 
+
     def __repr__(self):
         s = f"""
         <GTrack>:
-        event_id         = {sel.event_id}
+        event_id         = {self.event_id}
         number of voxels = {len(self.voxels)}
-        extrema voxels: e1 = {self.extrema['e1']}, e2 = {self.extrema['e1']}
+        extrema voxels: e1 = {self.extrema['e1']}, e2 = {self.extrema['e2']}
         track length: = {self.length} mm
         """
         return s
 
     __str__ = __repr__
+
+
+def write_gtracks_json(gtrks : List[GTrack], path : str):
+    """
+    Writes a list of gtracks to a file using json format
+
+    """
+    # first create a dictionary of json objects (from networkx objects)
+    dgtrk = {int(gtrks[i].event_id):nx.node_link_data(gtrks[i].gt)\
+             for i, _ in enumerate(gtrks)}
+
+    # then write to disk
+    with open(path, 'w') as fp:
+        json.dump(dgtrk, fp)
+
+
+def load_gtracks_json(path : str)->List[GTrack]:
+    """
+    Loads a list of gtracks in json format from file
+
+    """
+    # First load the json object from file
+
+    with open(path) as json_file:
+        jdgtrk = json.load(json_file)
+
+    # then recreate the list of GTracks
+    GTRKS = []
+
+    for key, values in jdgtrk.items():
+        gt = nx.node_link_graph(values)
+        event_id = int(key)
+        GTRKS.append(GTrack(gt,event_id))
+    return GTRKS
 
 
 def voxelize_hits(hits     : EventHits,
@@ -211,10 +247,9 @@ def make_track_graphs(voxels : List[Voxel], contiguity : float)->List[nx.Graph]:
     voxel_graph = nx.Graph()
     voxel_graph.add_nodes_from(voxels)
     for va, vb in combinations(voxels, 2):
-        if distance_between_two_voxels(va, vb) < contiguity:
-            voxel_graph.add_edge(va, vb,
-                                 distance = distance_between_two_voxels(va,vb))
-
+        d = distance_between_two_voxels(va, vb)
+        if d < contiguity:
+            voxel_graph.add_edge(va, vb, distance = d)
     return list(connected_component_subgraphs(voxel_graph))
 
 

@@ -21,12 +21,15 @@ from nextflex.reco_functions import distance_between_two_voxels
 from nextflex.reco_functions import voxel_distance_pairs
 from nextflex.reco_functions import make_track_graphs
 from nextflex.reco_functions import gtrack_voxels
+from nextflex.reco_functions import write_gtracks_json
+from nextflex.reco_functions import load_gtracks_json
+from nextflex.reco_functions import GTrack
 
 def test_voxelize_hits(bbonu_hits_and_voxels):
     eventHits, voxelHits = bbonu_hits_and_voxels
     t12    = eventHits.df
     vt12df = voxelHits.df
-    vHitsBar = voxelize_hits(eventHits, bin_size = 5, baryc = False)
+    vHitsBar = voxelize_hits(eventHits, bin_size = 10, baryc = False)
     gt12df = vHitsBar.df
     _, edx = np.histogram(np.abs(gt12df.x.values - vt12df.x.values))
     _, edy = np.histogram(np.abs(gt12df.y.values - vt12df.y.values))
@@ -50,7 +53,7 @@ def test_voxel_distances(voxel_list):
     voxels = voxel_list
     minimum_d, inclusive_d = voxel_distances(voxels)
     _, dist = np.histogram(minimum_d)
-    assert dist[-1] < 7 # in mm
+    assert dist[-1] < 10 # in mm
     _, dist = np.histogram(inclusive_d)
     assert dist[-1] < 100 # in mm
 
@@ -62,14 +65,24 @@ def test_voxel_distances(voxel_list):
 def test_make_track_graphs(bbonu_hits_and_voxels, voxel_list):
     _, voxelHits = bbonu_hits_and_voxels
     vt12df       = voxelHits.df
-    voxels     = voxel_list
-    contiguity = 10
-    gtracks    = make_track_graphs(voxels, contiguity)
-    gtv        = gtrack_voxels(gtracks[0], voxelHits.event_id)
-    gtvdf      = gtv.df
+    voxels       = voxel_list
+    contiguity   = 20
+    gtracks      = make_track_graphs(voxels, contiguity)
+    gtv          = gtrack_voxels(gtracks[0], voxelHits.event_id)
+    gtvdf        = gtv.df
     assert np.allclose(vt12df.x.values, gtvdf.x.values)
     assert np.allclose(vt12df.energy.values, gtvdf.energy.values)
 
 
-def test_blobd(bbonu_hits_and_voxels):
+def test_write_load_gtracks(bbonu_hits_and_voxels, voxel_list, FDATA):
+    testFile     = os.path.join(FDATA,"testData",
+                            'gtracks.json')
     _, voxelHits = bbonu_hits_and_voxels
+    vt12df       = voxelHits.df
+    voxels       = voxel_list
+    contiguity   = 20
+    gtracks      = make_track_graphs(voxels, contiguity)
+    GTRKS        = [GTrack(gtr, i) for i, gtr in enumerate(gtracks)]
+    write_gtracks_json(GTRKS, testFile)
+    gtrks        = load_gtracks_json(testFile)
+    assert GTRKS[0].event_id == gtrks[0].event_id
