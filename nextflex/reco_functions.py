@@ -3,8 +3,10 @@ import pandas as pd
 import networkx as nx
 import json
 import os
-
+import uuid
 from dataclasses import dataclass
+from dataclasses import field
+from dataclasses import asdict
 
 from itertools   import combinations
 from  tics.system_of_units import *
@@ -27,13 +29,16 @@ class GTrack:
     A graph-track
     gt       : a nx Graph representing the track
     event_id : event number
+    uid      : A unique identifier of the track
 
     """
     gt       : nx.Graph
     event_id : int
+    uid      : str  = ''
 
     def __post_init__(self):
-        self.extrema = {}
+        self.uid         = uuid.uuid1()
+        self.extrema     = {}
         self.voxels     = get_voxels_as_list(gtrack_voxels(self.gt,
                                                            self.event_id))
         self.voxels_df  = pd.DataFrame(self.voxels, columns =['x', 'y', 'z',
@@ -43,7 +48,6 @@ class GTrack:
         e1, e2, self.length = find_extrema_and_length_from_dict(self.distances)
         self.extrema['e1'] = e1
         self.extrema['e2'] = e2
-
 
     def __repr__(self):
         s = f"""
@@ -56,6 +60,54 @@ class GTrack:
         return s
 
     __str__ = __repr__
+
+
+@dataclass
+class GTracks:
+    """
+    A container of GTrack
+    """
+    gtracks         : List[GTrack] = field(default_factory=list)
+
+def write_event_gtracks_json(egtrk : List[GTracks], path : str):
+    """
+    Writes a list of gtracks to a file using json format
+
+    """
+    devt = {}
+    for i, gtrks in enumerate(egtrk): # loop over events
+        # Create a dictionary of json objects (from networkx objects)
+        dgtrk = {int(gtrks[i].event_id):nx.node_link_data(gtrks[i].gt)\
+             for i, _ in enumerate(gtrks)}
+
+        # and add to the dictionary of events
+        devt[i] = dgtrk
+
+    # write to disk
+    with open(path, 'w') as fp:
+        json.dump(devt, fp)
+
+
+def load_event_gtracks_json(path : str)->List[GTracks]:
+    """
+    Loads a list of gtracks in json format from file
+
+    """
+    # First load the json object from file
+
+    with open(path) as json_file:
+        jdevt = json.load(json_file)
+
+    # then recreate the list of GTracks
+    ETRKS = []
+    for _, dgtrk in jdevt.items():
+        GTRKS = []
+        for key, values in dgtrk.items():
+            gt = nx.node_link_graph(values)
+            event_id = int(key)
+            GTRKS.append(GTrack(gt,event_id))
+        ETRKS.append(GTRKS)
+    return ETRKS
 
 
 def write_gtracks_json(gtrks : List[GTrack], path : str):

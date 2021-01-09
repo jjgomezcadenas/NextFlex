@@ -156,7 +156,7 @@ def total_hit_energy(mc : McHits,
 
 def get_event_hits_from_mchits(mc : McHits,
                                event_id : int,
-                               hit_type='all')->EventHits:
+                               hit_type='all')->Union[bool, EventHits]:
     """
     Returns the mchits of and event.
     if hit_type = 'primary' returns hits of primary mc particles only

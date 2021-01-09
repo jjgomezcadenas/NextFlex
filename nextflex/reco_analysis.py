@@ -15,16 +15,12 @@ from pandas      import DataFrame
 from typing      import List, Tuple, Dict
 from typing      import TypeVar
 
-import matplotlib.pyplot as plt
-
 from  tics.system_of_units import *
 
 from tics.stats_tics    import bin_data_with_equal_bin_size
 from tics.pd_tics       import get_index_slice_from_multi_index
 from tics.pd_tics       import slice_and_select_df
-from tics.histograms    import h1
-from tics.histograms    import PlotLabels
-from tics.histograms    import plot_histo
+
 
 from nextflex.types import EventHits
 from nextflex.types import VoxelHits
@@ -39,6 +35,7 @@ from nextflex.reco_functions import make_track_graphs
 from nextflex.reco_functions import get_voxels_as_list
 from nextflex.reco_functions import voxel_distances
 from nextflex.reco_functions import GTrack
+from nextflex.reco_functions import GTracks
 from nextflex.reco_functions import voxels_in_blob
 from nextflex.reco_functions import voxel_energy
 from nextflex.reco_functions import voxel_nhits
@@ -84,6 +81,7 @@ class TrackRecoTiming:
     TimeEvtHits : List[float] = field(default_factory=list)
     TimeVoxHits : List[float] = field(default_factory=list)
     TimeGT      : List[float] = field(default_factory=list)
+    TimeVoxelize: Dict[List[float], List[float]] = field(default_factory=dict)
 
 
 @dataclass
@@ -126,7 +124,7 @@ class TrackRecoAnalysisSetup:
     recoSetup           : Setup
     voxel_bin           : float
     contiguity          : float
-    gtracks             : List[GTrack]
+    gtracks             : List[GTracks]
     trackRecoStats      : TrackRecoStats
     trackRecoEventStats : TrackRecoEventStats
     trackRecoTiming     : TrackRecoTiming
@@ -210,7 +208,7 @@ def reco_gtrack(ifnames    : List[str],
                 voxel_bin  : float,
                 contiguity : float,
                 debug      : bool = False,
-                ic         : int = 50)->Tuple[List[GTrack],
+                ic         : int = 50)->Tuple[List[GTracks],
                                               TrackRecoStats,
                                               TrackRecoTiming,
                                               TrackRecoEventStats]:
@@ -307,7 +305,8 @@ def gtrack_df(gtrksEvt : List[List[GTrack]], rb : float)->GraphTracks:
             vb1 = voxels_in_blob(gt, rb, extreme ='e1').df
             vb2 = voxels_in_blob(gt, rb, extreme ='e2').df
             index_tuples.append((evt_number, trk_number))
-            data.append({'event_id': gt.event_id,
+            data.append({'gtrack_uid': gt.uid,
+                         'event_id': gt.event_id,
                          'nvox': len(gt.voxels),
                          'tlength' : gt.length,
                          'x_e1' : gt.extrema['e1'][0],
@@ -378,11 +377,12 @@ def select_gtrack_topology(gtrks : GraphTracks,
     st, mt = event_list_by_multiplicity(gtrks)
 
     if topology == "single":
-        gt   = select_tracks_by_multiplicity(gtrks, st)
-        gt1t = pd.DataFrame(gt.values,
-                             index=gt.index.droplevel(1),
-                             columns = gt.columns)
-        return gt1t
+        #gt   = select_tracks_by_multiplicity(gtrks, st)
+        #gt1t = pd.DataFrame(gt.values,
+        #                     index=gt.index.droplevel(1),
+        #                     columns = gt.columns)
+        # return gt1t
+        return select_tracks_by_multiplicity(gtrks, st)
     else:
         return select_tracks_by_multiplicity(gtrks, mt)
 
@@ -455,157 +455,3 @@ def gtrack_summary(gts : GtrkStats, trk_number : int):
     EnergyBlob1       = {gts.EnergyBlob1[trk_number]}
     EnergyBlob2       = {gts.EnergyBlob2[trk_number]}
     """)
-
-
-def reco_gtrack_stats_histos(trs : TrackRecoStats,
-                             rNumberMCHits      = (0,1500),
-                             rEnergyMCHits      = (0,25),
-                             rTotalEnergyMCHits = (0,2600),
-                             rNumberOfVoxels    = (0,100),
-                             rVoxelEnergyKeV    = (0,500),
-                             rHitsPerVoxel      = (0,200),
-                             rMinimumDistVoxels = (0,10),
-                             rNumberRecTrks     = (0,10),
-                             figsize            = (14,10)):
-    """
-    Plots the following histograms
-
-    1. NumberMCHits
-    2. EnergyMCHits
-    3. TotalEnergyMCHits
-    4. NumberOfVoxels
-    5. VoxelEnergyKeV
-    6. HitsPerVoxel
-    7. MinimumDistVoxels
-    8. NumberRecTrks
-
-    """
-    fig = plt.figure(figsize=figsize)
-    ax      = fig.add_subplot(4, 2, 1)
-    n, b, mu, std    = h1(trs.NumberMCHits, bins=10, range=rNumberMCHits,
-                          stats = True)
-    pltl = PlotLabels(x='Number of MC Hits', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 2)
-    energyKeV = np.array(trs.EnergyMCHits) / keV
-    n, b, mu, std    = h1(energyKeV, bins=10, range=rEnergyMCHits,
-                          stats = True)
-    pltl = PlotLabels(x='Energy Hits (keV)', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 3)
-    energyKeV = np.array(trs.TotalEnergyMCHits) / keV
-    n, b, mu, std    = h1(energyKeV, bins=10, range=rTotalEnergyMCHits,
-                          stats = True)
-    pltl = PlotLabels(x='Total energy (keV)', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 4)
-    n, b, mu, std    = h1(trs.NumberOfVoxels, bins=10, range=rNumberOfVoxels,
-                          stats = True)
-    pltl = PlotLabels(x='number of voxels', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 5)
-    n, b, mu, std    = h1(trs.VoxelEnergyKeV, bins=10, range=rVoxelEnergyKeV,
-                          stats = True)
-    pltl = PlotLabels(x='Voxel energy (keV)', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 6)
-    n, b, mu, std    = h1(trs.HitsPerVoxel, bins=10, range=rHitsPerVoxel,
-                          stats = True)
-    pltl = PlotLabels(x='Hits per voxel', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 7)
-    n, b, mu, std    = h1(trs.MinimumDistVoxels, bins=10,
-                          range=rMinimumDistVoxels,
-                          stats = True)
-    pltl = PlotLabels(x='minimum distance between voxels', y='events',
-                          title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 8)
-    n, b, mu, std    = h1(trs.NumberRecTrks, bins=10, range=rNumberRecTrks,
-                          stats = True)
-    pltl = PlotLabels(x='Number of reconstructed tracks', y='events',
-                         title=None)
-    plot_histo(pltl, ax, legend=True)
-    plt.tight_layout()
-
-
-def reco_gtrack_timing_histos(trt : TrackRecoTiming, figsize=(14,10)):
-    """
-    Plots the following histograms
-
-    1. TimeMcHits
-    2. TimeEvtHits
-    3. TimeVoxHits
-    4. TimeGT
-
-    """
-    fig = plt.figure(figsize=figsize)
-    ax      = fig.add_subplot(4, 2, 1)
-    tms = np.array(trt.TimeMcHits) * 1000
-    n, b, mu, std    = h1(tms, bins=10, range=[0,20], stats = True)
-    pltl = PlotLabels(x='Time to load Hits (ms)', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 2)
-    tms = np.array(trt.TimeEvtHits) * 1000
-    n, b, mu, std    = h1(tms, bins=10, range=[0,200], stats = True)
-    pltl = PlotLabels(x='Time to compute Event Hits (ms)', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 3)
-    tms = np.array(trt.TimeVoxHits) * 1000
-    n, b, mu, std    = h1(tms, bins=10, range=[0,200], stats = True)
-    pltl = PlotLabels(x='Time to voxelize hits', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(4, 2, 4)
-    tms = np.array(trt.TimeGT) * 1000
-    n, b, mu, std    = h1(trt.TimeGT, bins=10, range=[0,200], stats = True)
-    pltl = PlotLabels(x='Time to create GTracks', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    plt.tight_layout()
-
-
-def reco_gtrack_blobs_histos(gts : GtrkStats, figsize=(14,10)):
-
-    fig = plt.figure(figsize=figsize)
-    ax      = fig.add_subplot(3, 2, 1)
-    n, b, mu, std    = h1(gts.NumberOfVoxels, bins=10, range=[0,40], stats = True)
-    pltl = PlotLabels(x='Number of voxels in gtrack', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(3, 2, 2)
-    n, b, mu, std    = h1(gts.TrackLength, bins=10, range=[0,250], stats = True)
-    pltl = PlotLabels(x='Track Length', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(3, 2, 3)
-    n, b, mu, std    = h1(gts.EnergyBlob1, bins=10, range=[0,2000], stats = True)
-    pltl = PlotLabels(x='Energy blob1', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(3, 2, 4)
-    n, b, mu, std    = h1(gts.EnergyBlob2, bins=10, range=[0,2000], stats = True)
-    pltl = PlotLabels(x='Energy blob2', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(3, 2, 5)
-
-    n, b, mu, std    = h1(gts.NumberVoxelsBlob1, bins=10, range=[0,20], stats = True)
-    pltl = PlotLabels(x='Number of voxels blob1', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    ax      = fig.add_subplot(3, 2, 6)
-    n, b, mu, std    = h1(gts.NumberVoxelsBlob2, bins=10, range=[0,20], stats = True)
-    pltl = PlotLabels(x='Number of voxels blob2', y='events', title=None)
-    plot_histo(pltl, ax, legend=True)
-
-    plt.tight_layout()

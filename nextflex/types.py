@@ -188,7 +188,8 @@ class VoxelHits:
 class GraphTracks:
     """
     Wrapper data class to give a type to the DataFrame
-    representing a collection of graph tracks
+    representing the reconstructed GTRack obect, plus
+    de blobs.
 
     """
     df       : DataFrame
@@ -199,7 +200,8 @@ class GraphTracks:
         columns expected in the data frame
 
         """
-        self.columns : Tuple[str] = ('event_id', 'nvox', 'tlength',
+        self.columns : Tuple[str] = ('gtrack_uid', 'event_id',
+        'nvox', 'tlength',
         'x_e1', 'y_e1', 'z_e1', 'energy_e1', 'nvox_b1', 'energy_b1',
         'x_e2', 'y_e2', 'z_e2', 'energy_e2', 'nvox_b2', 'energy_b2')
 
