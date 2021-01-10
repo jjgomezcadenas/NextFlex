@@ -154,6 +154,50 @@ class EventHits:
 
 
 @dataclass
+class EventMcHits:
+    """
+    Wrapper data class to give a type to the DataFrame
+    representing a collection of hits (add time and label)
+
+    """
+    df       : DataFrame
+    event_id : int
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame
+
+        """
+        self.columns : Tuple[str] = ('x', 'y', 'z',
+                                     'time', 'energy', 'label')
+
+        assert self.columns == tuple(self.df.columns)
+
+
+    def __repr__(self):
+        s = f"""<{get_class_name(self)}>
+        event number = {self.event_id}
+        Columns = {self.columns}
+        """
+        return s
+
+
+    __str__ = __repr__
+
+@dataclass
+class VoxelInfo:
+    """
+    Data class to collect info on voxelisation
+    The field xyz_bins represents the product:
+    len(xbins) * len(ybins) * len(zbins) which measures
+    the memory used for the voxelisation.
+
+    """
+    xyz_bins : float
+    bin_size : float
+
+@dataclass
 class VoxelHits:
     """
     Wrapper data class to give a type to the DataFrame

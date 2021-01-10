@@ -26,7 +26,7 @@ from nextflex.types import McParticles
 from nextflex.types import McVertex
 from nextflex.types import McHits
 from nextflex.types import EventHits
-
+from nextflex.types import EventMcHits
 
 
 def get_mc_particles(file_name : str)->McParticles:
@@ -154,33 +154,61 @@ def total_hit_energy(mc : McHits,
     return grouped_multiple.reset_index()
 
 
+def get_particle_ids_from_mchits(mc       : McHits,
+                                 event_id : int)->List[int]:
+    """
+    Return a list of particle ids from the McHits DF
+
+    """
+    mchits = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(None,None),
+                            hit_slice=slice(None, None)).df
+
+    vi = mchits.index.values
+    particle_ids = np.unique(list(zip(*vi))[1])
+    return particle_ids
+
+
+def get_hit_ids_from_mchits(mc          : McHits,
+                            event_id    : int,
+                            particle_id : int)->List[int]:
+    """
+    Return a list of hit ids from the McHits DF
+    for a given event and particle
+
+    """
+
+    mchits = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(particle_id, particle_id),
+                            hit_slice=slice(None, None)).df
+
+    vi = mchits.index.values
+    return np.unique(list(zip(*vi))[2])
+
+
 def get_event_hits_from_mchits(mc : McHits,
                                event_id : int,
-                               hit_type='all')->Union[bool, EventHits]:
+                               particle_type = 'all')->EventHits:
     """
     Returns the mchits of and event.
     if hit_type = 'primary' returns hits of primary mc particles only
     else ('all') return hits of all mc particles
 
     """
-    if hit_type == 'primary':
+
+    assert particle_type == "primary" or particle_type == "all"
+
+    if particle_type == 'primary':
         mchitsL = [select_mc_hits(mc, event_slice=slice(event_id, event_id),
                                   particle_slice =slice(id,id),
                                   hit_slice=slice(None, None)).df\
                                   for id in (1,2)]
         Hits    = pd.concat(mchitsL).reset_index(drop=True)
     else:
-        # First get a df with all particles and hits in event_id
-        # so that we can extract a list of particles
-        mchits = select_mc_hits(mc, event_slice=slice(event_id, event_id),
-                                particle_slice =slice(None,None),
-                                hit_slice=slice(None, None)).df
-
-        vi = mchits.index.values
-        particle_ids = np.unique(list(zip(*vi))[1])
+        particle_ids = get_particle_ids_from_mchits(mc, event_id)
         #print(particle_ids)
 
-        # Now build a list of hits for each particle and then concat
+        # Build a list of hits for each particle and then concat
         mchitsL = [select_mc_hits(mc, event_slice=slice(event_id, event_id),
                                   particle_slice =slice(id,id),
                                   hit_slice=slice(None, None)).df\
@@ -190,3 +218,50 @@ def get_event_hits_from_mchits(mc : McHits,
     eHits = Hits[Hits.label == "ACTIVE"].drop(columns=["time", "label"])
 
     return EventHits(eHits,event_id)
+
+
+def get_true_extremes(mc         : McHits,
+                      event_id   : int,
+                      event_type : str = "bb0nu")->EventHits:
+    """
+    Returns the extremes of an event.
+    If event_type is bb0nu the extremes are computed
+    as the last hits of main primaries (1 and 2)
+    If event_type is 1e, the extremes are computed as
+    the first and last hit of track 1 (main electron)
+
+    """
+
+    assert event_type == "bb0nu" or event_type == "1e"
+
+    hit_ids_p1 = get_hit_ids_from_mchits(mc, event_id, particle_id=1)
+
+    # if bb0nu last hit of each of the main electrons
+    if event_type == 'bb0nu':
+        last = hit_ids_p1[-1]
+        e1 = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(1,1),
+                            hit_slice=slice(last, last)).df
+
+        hit_ids_p2 = get_hit_ids_from_mchits(mc, event_id, particle_id=2)
+        last = hit_ids_p2[-1]
+        e2 = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(2,2),
+                            hit_slice=slice(last, last)).df
+
+        Hits    = pd.concat([e1, e2]).reset_index(drop=True)
+    else:
+        first = hit_ids_p1[0]
+        last  = hit_ids_p1[-1]
+        e1 = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(1,1),
+                            hit_slice=slice(first, first)).df
+
+        e2 = select_mc_hits(mc, event_slice=slice(event_id, event_id),
+                            particle_slice =slice(1,1),
+                            hit_slice=slice(last, last)).df
+        Hits    = pd.concat([e1, e2]).reset_index(drop=True)
+
+    # eHits = Hits[Hits.label == "ACTIVE"].drop(columns=["time", "label"])
+    #print(Hits)
+    return EventMcHits(Hits,event_id)

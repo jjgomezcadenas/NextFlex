@@ -18,6 +18,7 @@ from typing      import TypeVar
 
 from nextflex.types import EventHits
 from nextflex.types import VoxelHits
+from nextflex.types import VoxelInfo
 
 Voxel = TypeVar('Voxel', Tuple[float], np.array)  # define voxel as type
 #
@@ -39,7 +40,7 @@ class GTrack:
     def __post_init__(self):
         self.uid         = uuid.uuid1()
         self.extrema     = {}
-        self.voxels     = get_voxels_as_list(gtrack_voxels(self.gt,
+        self.voxels      = get_voxels_as_list(gtrack_voxels(self.gt,
                                                            self.event_id))
         self.voxels_df  = pd.DataFrame(self.voxels, columns =['x', 'y', 'z',
                                                              'energy', 'nhits'])
@@ -146,14 +147,19 @@ def load_gtracks_json(path : str)->List[GTrack]:
 
 def voxelize_hits(hits     : EventHits,
                   bin_size : int,
-                  baryc    : bool = True)->VoxelHits:
+                  baryc    : bool = True)->Tuple[VoxelHits, VoxelInfo]:
     """
     Takes a EventHits objects wit fields (x,y,z,energy)
-    voxelize the data in cubic voxels of size bin_size and return
-    a VoxelHits object, which includes the field nhits (number of hits)
+    voxelize the data in cubic voxels of size bin_size and return a
+    Tuple with two objects:
+
+    1. A VoxelHits object, which includes the field nhits (number of hits)
     used to form the voxel. If the field barycenter is True,
     compute the (x, y, z) position of the voxel as the baryc
     of the hits, otherwise as the mean of the positions of the hits.
+
+    2. A VoxelInfo object which contains information concering the
+    voxelisation. 
 
     """
 
@@ -187,11 +193,34 @@ def voxelize_hits(hits     : EventHits,
         d['nhits'] = df['energy'].count()
         return pd.Series(d)
 
+    def check_xyz_bins(xbins, ybins, zbins, bin_size):
+        """
+        Get sure that xyz_bins <= 1e+6 otherwise
+        rebin voxels
+
+        """
+        xyz_bins = len(xbins) * len(ybins) * len(zbins) / 1e+6
+        if xyz_bins > 1:
+            print(f'xyz_bins = {xyz_bins} is too large, try larger bin_size')
+            while xyz_bins > 1:
+                bin_size+=1
+                xbins, ybins, zbins = bin_data_with_equal_bin_size([df.x,
+                                                                    df.y,
+                                                                    df.z],
+                                                                    bin_size)
+                xyz_bins = len(xbins) * len(ybins) * len(zbins) / 1e+6
+            print(f' new bin_size = {bin_size} xyz_bins = {xyz_bins} ')
+        return xyz_bins, bin_size, xbins, ybins, zbins
+
     df = hits.df.copy()
-    #print(df)
     xbins, ybins, zbins = bin_data_with_equal_bin_size([df.x, df.y, df.z],
                                                         bin_size)
-    #print(xbins, ybins, zbins)
+
+    xyz_bins, bin_size, xbins, ybins, zbins,  = check_xyz_bins(xbins,
+                                                               ybins,
+                                                               zbins,
+                                                               bin_size)
+
     df['x_bins'] = pd.cut(df['x'],bins=xbins, labels=range(len(xbins)-1))
     df['y_bins'] = pd.cut(df['y'],bins=ybins, labels=range(len(ybins)-1))
     df['z_bins'] = pd.cut(df['z'],bins=zbins, labels=range(len(zbins)-1))
@@ -204,8 +233,8 @@ def voxelize_hits(hits     : EventHits,
         vhits = df.groupby(['x_bins','y_bins','z_bins'])\
                                              .apply(voxelize_hits_mean)\
                                              .dropna().reset_index(drop=True)
-    #print(vhits)
-    return VoxelHits(vhits, hits.event_id)
+
+    return VoxelHits(vhits, hits.event_id), VoxelInfo(xyz_bins, bin_size)
 
 
 def get_voxels_as_list(voxelHits : VoxelHits)->List[Voxel]:

@@ -81,8 +81,8 @@ class TrackRecoTiming:
     TimeEvtHits : List[float] = field(default_factory=list)
     TimeVoxHits : List[float] = field(default_factory=list)
     TimeGT      : List[float] = field(default_factory=list)
-    TimeVoxelize: Dict[List[float], List[float]] = field(default_factory=dict)
-
+    XyzBins     : List[float] = field(default_factory=list)
+    BinSize     : List[float] = field(default_factory=list)
 
 @dataclass
 class TrackRecoEventStats:
@@ -205,6 +205,7 @@ def load_from_JSON(path):
 
 
 def reco_gtrack(ifnames    : List[str],
+                topology   : str,
                 voxel_bin  : float,
                 contiguity : float,
                 debug      : bool = False,
@@ -216,12 +217,21 @@ def reco_gtrack(ifnames    : List[str],
     Driver to reconstruct GraphTracks (or GTracks), including
     statistics and timing book keeping.
 
+    - topology takes values "primary" or "all" and defines whether to consider
+    hits from the primary electrons or from all the particles in the event.
+
+    - voxel_bin defines the size of the voxelization cubits (aka voxels)
+
+    - contiguity defines the distance needed for two voxels to be considered
+    adyacent
+
     """
+
+    assert topology == "primary" or topology == "all"
 
     trs  = TrackRecoStats()
     trt  = TrackRecoTiming()
     tres = TrackRecoEventStats(ifnames, voxel_bin, contiguity)
-
     GtEvent = []
 
     with warnings.catch_warnings(record=True) as w:
@@ -244,28 +254,37 @@ def reco_gtrack(ifnames    : List[str],
                 if debug:
                     print(f'event number = {tres.e_total}')
 
+                # Get the Mc Hits in the event. Depending on the topology
+                # get the hits corresponding to primary particles or to all
+                # particles in the event
+
                 mchits, time = dt_get_event_hits_from_mchits(mcHits,
-                                                             event_id=event_id,
-                                                             hit_type='all')
+                                                    event_id     = event_id,
+                                                    particle_type = topology)
+
                 trt.TimeEvtHits.append(time)
                 trs.NumberMCHits.append(mchits.df.energy.count())
                 trs.EnergyMCHits.extend(mchits.df.energy.values)
                 trs.TotalEnergyMCHits.append(mchits.df.energy.sum())
 
-                vt12, time = dt_voxelize_hits(mchits,
-                                              bin_size = voxel_bin,
-                                              baryc    = True)
+                # Voxelize the track in cubits of bin_size
+                vox, time = dt_voxelize_hits(mchits,
+                                             bin_size = voxel_bin,
+                                             baryc    = True)
+                vt12, vtinfo = vox
                 trt.TimeVoxHits.append(time)
+                trt.XyzBins.append(vtinfo.xyz_bins)
+                trt.BinSize.append(vtinfo.bin_size)
 
                 vt12df = vt12.df
                 voxels = get_voxels_as_list(vt12)
 
                 minimum_d, _ = voxel_distances(voxels)
-                trs.MinimumDistVoxels.extend(minimum_d)
+                trs.MinimumDistVoxels.append(np.max(minimum_d))
 
                 trs.NumberOfVoxels.append(len(voxels))
-                trs.VoxelEnergyKeV.extend(vt12df.energy/keV)
-                trs.HitsPerVoxel.extend(vt12df.nhits)
+                trs.VoxelEnergyKeV.append(vt12df.energy.mean()/keV)
+                trs.HitsPerVoxel.append(vt12df.nhits.count())
 
                 gtracks, time = dt_make_track_graphs(voxels, contiguity)
                 trt.TimeGT.append(time)

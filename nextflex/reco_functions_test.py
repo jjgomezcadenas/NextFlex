@@ -29,7 +29,7 @@ def test_voxelize_hits(bbonu_hits_and_voxels):
     eventHits, voxelHits = bbonu_hits_and_voxels
     t12    = eventHits.df
     vt12df = voxelHits.df
-    vHitsBar = voxelize_hits(eventHits, bin_size = 10, baryc = False)
+    vHitsBar, _ = voxelize_hits(eventHits, bin_size = 10, baryc = False)
     gt12df = vHitsBar.df
     _, edx = np.histogram(np.abs(gt12df.x.values - vt12df.x.values))
     _, edy = np.histogram(np.abs(gt12df.y.values - vt12df.y.values))

@@ -70,9 +70,21 @@ def bbonu_hits_and_voxels(FDATA):
                             'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
     mcHits  = get_mc_hits(testFile)
     t12     = get_event_hits_from_mchits(mcHits, event_id = 0)
-    vt12df  = voxelize_hits(t12, bin_size = 10, baryc = True)
+    vt12df, vtinfo  = voxelize_hits(t12, bin_size = 10, baryc = True)
     return t12, vt12df
-    
+
+
+@pytest.fixture(scope='session')
+def bbonu_and_1e_mchits(FDATA):
+    testFilebb      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
+    testFile1e      = os.path.join(FDATA,"testData",
+                            'FLEX100_M6_O6.e-.ACTIVE.1000.next.h5')
+
+    mcHits_bb = get_mc_hits(testFilebb)
+    mcHits_1e = get_mc_hits(testFile1e)
+    return mcHits_bb, mcHits_1e
+
 
 @pytest.fixture(scope='session')
 def voxel_list(bbonu_hits_and_voxels):

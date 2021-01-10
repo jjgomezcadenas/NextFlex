@@ -19,6 +19,8 @@ from nextflex.mctrue_functions import get_mc_hits
 from nextflex.mctrue_functions import select_mc_hits
 from nextflex.mctrue_functions import total_hit_energy
 from nextflex.mctrue_functions import get_event_hits_from_mchits
+from nextflex.mctrue_functions import get_particle_ids_from_mchits
+from nextflex.mctrue_functions import get_true_extremes
 
 
 def test_get_mc_particles(FDATA):
@@ -109,6 +111,16 @@ def test_select_mc_hits(bbonu_mc_particles, bbonu_mc_hits):
     assert np.allclose(particle_id_1, particle_id_2)
 
 
+def test_get_particle_ids_from_mchits(bbonu_and_1e_mchits):
+    """
+    First particle or bb or 1e has the same index (particle 1)
+    """
+    mcHits_bb, mcHits_1e = bbonu_and_1e_mchits
+    pid_bb = get_particle_ids_from_mchits(mcHits_bb, event_id =0)
+    pid_1e = get_particle_ids_from_mchits(mcHits_1e, event_id =5000)
+    assert pid_bb[0] == pid_1e[0]
+
+
 def test_total_hit_energy(bbonu_mc_hits):
     mcHits      = bbonu_mc_hits
     he00 = total_hit_energy(mcHits,
@@ -132,17 +144,66 @@ def test_total_hit_energy(bbonu_mc_hits):
 
 def test_get_event_hits_from_mchits(bbonu_mc_hits):
     mcHits      = bbonu_mc_hits
-    mche = get_event_hits_from_mchits(mcHits, event_id=0, hit_type='primary')
+    mche = get_event_hits_from_mchits(mcHits,
+                                      event_id=0,
+                                      particle_type='primary')
+
     hep = total_hit_energy(mcHits, event_slice = slice(0,0),
                              particle_slice =slice(1, 2))
     ev1 = hep.total_hit_energy.values[0]
     mcthe = mche.df.energy.sum()
     assert np.allclose(ev1, mcthe)
 
-    mcha = get_event_hits_from_mchits(mcHits, event_id=0, hit_type='all')
+    mcha = get_event_hits_from_mchits(mcHits, event_id=0, particle_type='all')
     athe = mcha.df.energy.sum()
     he00 = total_hit_energy(mcHits,
                                 event_slice = slice(0,0),
                                 particle_slice = slice(None, None))
     ev = he00.total_hit_energy.values[0]
     assert np.allclose(ev, athe)
+
+
+def test_get_particle_ids_from_mchits(bbonu_and_1e_mchits):
+    """
+    The first particle in bb0nu and 1e has index 1 and corresponds
+    to one electron
+
+    """
+    mcHits_bb, mcHits_1e = bbonu_and_1e_mchits
+    pbb = get_particle_ids_from_mchits(mcHits_bb, event_id =0)
+    p1e = get_particle_ids_from_mchits(mcHits_1e, event_id =5000)
+    assert pbb[0] == p1e[0]
+
+
+def test_get_true_extremes(bbonu_and_1e_mchits):
+    """
+    - The definition of true extreme depends on whether the event
+    is bb0nu or 1e.
+        - For bbonu, the extremes are the last hit of each
+        electron (particle 1 and particle 2)
+        - For 1e the extremes are first and last hit of particle 1.
+    - Since hits are time-ordered one can use time to define
+    what is first and last hits.
+
+    """
+    mcHits_bb, mcHits_1e = bbonu_and_1e_mchits
+    mcbb = mcHits_bb.df
+    mc1e = mcHits_1e.df
+
+    mcbb_evt_p1 = mcbb.loc[(slice(0,0), slice(1,1), slice(None,None)), :]
+    times_bb_p1 = mcbb_evt_p1.time
+    mcbb_evt_p2 = mcbb.loc[(slice(0,0), slice(2,2), slice(None,None)), :]
+    times_bb_p2 = mcbb_evt_p2.time
+    mc1e_evt = mc1e.loc[(slice(5000,5000),
+                         slice(None,None), slice(None,None)), :]
+    times1e = mc1e_evt.time
+
+    # bb0nu case:
+    tebb = get_true_extremes(mcHits_bb, event_id= 0, event_type = "bb0nu").df
+    assert np.allclose(tebb.time[0], np.max(times_bb_p1))
+    assert np.allclose(tebb.time[1], np.max(times_bb_p2))
+
+    #1e case
+    te1e = get_true_extremes(mcHits_1e, event_id= 5000, event_type = "1e").df
+    np.allclose(te1e.time[0], np.min(times1e))
+    np.allclose(te1e.time[1], np.max(times1e))
