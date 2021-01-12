@@ -26,7 +26,7 @@ from nextflex.types import McParticles
 from nextflex.types import McVertex
 from nextflex.types import McHits
 from nextflex.types import EventHits
-from nextflex.types import EventMcHits
+from nextflex.types import EventTrueExtrema
 
 
 def get_mc_particles(file_name : str)->McParticles:
@@ -111,13 +111,13 @@ def get_mc_hits(file_name : str)->McHits:
     return McHits(mc.sort_index())
 
 
-def select_mc_hits(mc : McHits,
-                        event_slice    : slice,
-                        particle_slice : slice,
-                        hit_slice      : slice,
-                        columns        : Columns = None)->Union[McHits,
-                                                                pd.Series,
-                                                                pd.DataFrame]:
+def select_mc_hits(mc             : McHits,
+                   event_slice    : slice,
+                   particle_slice : slice,
+                   hit_slice      : slice,
+                   columns        : Columns = None)->Union[McHits,
+                                                           pd.Series,
+                                                           pd.DataFrame]:
     """
     The slice type is of the form slice(start, stop, step).
     Notice that slice(stop) is valid and slice(start, stop) is also valid
@@ -186,19 +186,19 @@ def get_hit_ids_from_mchits(mc          : McHits,
     return np.unique(list(zip(*vi))[2])
 
 
-def get_event_hits_from_mchits(mc : McHits,
-                               event_id : int,
-                               particle_type = 'all')->EventHits:
+def get_event_hits_from_mchits(mc         : McHits,
+                               event_id   : int,
+                               topology   : str = 'all',
+                               event_type : str = 'bb0nu')->EventHits:
     """
-    Returns the mchits of and event.
-    if hit_type = 'primary' returns hits of primary mc particles only
-    else ('all') return hits of all mc particles
+    Returns the EventHits of and event.
 
     """
 
-    assert particle_type == "primary" or particle_type == "all"
+    assert topology   == "primary" or topology   == "all"
+    assert event_type == "bb0nu" or event_type == "1e"
 
-    if particle_type == 'primary':
+    if topology == 'primary':
         mchitsL = [select_mc_hits(mc, event_slice=slice(event_id, event_id),
                                   particle_slice =slice(id,id),
                                   hit_slice=slice(None, None)).df\
@@ -206,7 +206,6 @@ def get_event_hits_from_mchits(mc : McHits,
         Hits    = pd.concat(mchitsL).reset_index(drop=True)
     else:
         particle_ids = get_particle_ids_from_mchits(mc, event_id)
-        #print(particle_ids)
 
         # Build a list of hits for each particle and then concat
         mchitsL = [select_mc_hits(mc, event_slice=slice(event_id, event_id),
@@ -217,17 +216,17 @@ def get_event_hits_from_mchits(mc : McHits,
 
     eHits = Hits[Hits.label == "ACTIVE"].drop(columns=["time", "label"])
 
-    return EventHits(eHits,event_id)
+    return EventHits(eHits,event_id, topology, event_type)
 
 
-def get_true_extremes(mc         : McHits,
-                      event_id   : int,
-                      event_type : str = "bb0nu")->EventHits:
+def get_true_extrema(mc         : McHits,
+                     event_id   : int,
+                     event_type : str = "bb0nu")->EventTrueExtrema:
     """
-    Returns the extremes of an event.
-    If event_type is bb0nu the extremes are computed
+    Returns the extrema of an event.
+    If event_type is bb0nu the extrema are computed
     as the last hits of main primaries (1 and 2)
-    If event_type is 1e, the extremes are computed as
+    If event_type is 1e, the extrema are computed as
     the first and last hit of track 1 (main electron)
 
     """
@@ -262,6 +261,4 @@ def get_true_extremes(mc         : McHits,
                             hit_slice=slice(last, last)).df
         Hits    = pd.concat([e1, e2]).reset_index(drop=True)
 
-    # eHits = Hits[Hits.label == "ACTIVE"].drop(columns=["time", "label"])
-    #print(Hits)
-    return EventMcHits(Hits,event_id)
+    return EventTrueExtrema(Hits, event_id, event_type)

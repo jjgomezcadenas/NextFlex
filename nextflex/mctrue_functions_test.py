@@ -20,7 +20,7 @@ from nextflex.mctrue_functions import select_mc_hits
 from nextflex.mctrue_functions import total_hit_energy
 from nextflex.mctrue_functions import get_event_hits_from_mchits
 from nextflex.mctrue_functions import get_particle_ids_from_mchits
-from nextflex.mctrue_functions import get_true_extremes
+from nextflex.mctrue_functions import get_true_extrema
 
 
 def test_get_mc_particles(FDATA):
@@ -85,6 +85,21 @@ def test_get_mc_hits(FDATA):
     assert np.allclose(mcHits.event_list(),np.array([0, 1, 2, 3]))
 
 
+def test_select_mc_hits_is_loc_slide(bbonu_mc_hits):
+    mcHits     = bbonu_mc_hits
+    mchdf      = mcHits.df
+    mcHits_evt = select_mc_hits(mcHits,
+                        event_slice    = slice(0,0),
+                        particle_slice = slice(None,None),
+                        hit_slice      = slice(None,None))
+    x1 = mcHits_evt.df.x.values
+
+    mcHits_evt2 = mchdf.loc[(slice(0,0), slice(None,None), slice(None,None)), :]
+    x2 = mcHits_evt2.x.values
+
+    assert np.allclose(x1,x2)
+
+
 def test_select_mc_hits(bbonu_mc_particles, bbonu_mc_hits):
     mcParticles = bbonu_mc_particles
     mcHits      = bbonu_mc_hits
@@ -145,8 +160,8 @@ def test_total_hit_energy(bbonu_mc_hits):
 def test_get_event_hits_from_mchits(bbonu_mc_hits):
     mcHits      = bbonu_mc_hits
     mche = get_event_hits_from_mchits(mcHits,
-                                      event_id=0,
-                                      particle_type='primary')
+                                      event_id = 0,
+                                      topology = 'primary')
 
     hep = total_hit_energy(mcHits, event_slice = slice(0,0),
                              particle_slice =slice(1, 2))
@@ -154,7 +169,7 @@ def test_get_event_hits_from_mchits(bbonu_mc_hits):
     mcthe = mche.df.energy.sum()
     assert np.allclose(ev1, mcthe)
 
-    mcha = get_event_hits_from_mchits(mcHits, event_id=0, particle_type='all')
+    mcha = get_event_hits_from_mchits(mcHits, event_id=0, topology='all')
     athe = mcha.df.energy.sum()
     he00 = total_hit_energy(mcHits,
                                 event_slice = slice(0,0),
@@ -199,11 +214,11 @@ def test_get_true_extremes(bbonu_and_1e_mchits):
     times1e = mc1e_evt.time
 
     # bb0nu case:
-    tebb = get_true_extremes(mcHits_bb, event_id= 0, event_type = "bb0nu").df
+    tebb = get_true_extrema(mcHits_bb, event_id= 0, event_type = "bb0nu").df
     assert np.allclose(tebb.time[0], np.max(times_bb_p1))
     assert np.allclose(tebb.time[1], np.max(times_bb_p2))
 
     #1e case
-    te1e = get_true_extremes(mcHits_1e, event_id= 5000, event_type = "1e").df
+    te1e = get_true_extrema(mcHits_1e, event_id= 5000, event_type = "1e").df
     np.allclose(te1e.time[0], np.min(times1e))
     np.allclose(te1e.time[1], np.max(times1e))

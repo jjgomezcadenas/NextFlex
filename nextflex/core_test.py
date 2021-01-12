@@ -116,7 +116,7 @@ def test_Setup(FDATA):
     assert setup.name == name
     assert setup.esens == esens
     assert setup.nesens == nesens
-    
+
 
 def test_find_pitch(FDATA):
     testFile      = os.path.join(FDATA,"testData",
@@ -264,7 +264,7 @@ def test_get_Q(mc_sns_sipm_map):
     DQM      =np.array([(Q.max() - qmx) /Q.max()  for qmx in QM])
     mu, std = norm.fit(DQM)
 
-    assert np.abs(mu) * 100 < 5
+    assert np.abs(mu) * 100 < 10
     assert std * 100 < 150
 
 

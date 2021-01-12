@@ -125,11 +125,19 @@ class McHits:
 class EventHits:
     """
     Wrapper data class to give a type to the DataFrame
-    representing a collection of hits
+    representing a collection of hits. In addition to the
+    inner dataframe, the class includes the event_id and two
+    parameters:
+    - topology  : describes the hits included in this EventHits obect.
+        - "all"     : all hits included
+        - "primary" : only primary hits included
+    - event_type : either "bbonu" (signal) or "1e" (background)
 
     """
-    df       : DataFrame
-    event_id : int
+    df         : DataFrame
+    event_id   : int
+    topology   : str
+    event_type : str
 
     def __post_init__(self):
         """
@@ -145,6 +153,8 @@ class EventHits:
     def __repr__(self):
         s = f"""<{get_class_name(self)}>
         event number = {self.event_id}
+        event type   = {self.event_type}
+        topology     = {self.topology}
         Columns = {self.columns}
         """
         return s
@@ -154,14 +164,19 @@ class EventHits:
 
 
 @dataclass
-class EventMcHits:
+class EventTrueExtrema:
     """
     Wrapper data class to give a type to the DataFrame
-    representing a collection of hits (add time and label)
+    representing the event true extrema. In addition to the
+    inner dataframe, the class includes the event_id and one
+    parameters:
+
+    - event_type : either "bbonu" (signal) or "1e" (background)
 
     """
-    df       : DataFrame
-    event_id : int
+    df         : DataFrame
+    event_id   : int
+    event_type : str
 
     def __post_init__(self):
         """
@@ -178,6 +193,7 @@ class EventMcHits:
     def __repr__(self):
         s = f"""<{get_class_name(self)}>
         event number = {self.event_id}
+        event type   = {self.event_type}
         Columns = {self.columns}
         """
         return s
@@ -185,27 +201,31 @@ class EventMcHits:
 
     __str__ = __repr__
 
-@dataclass
-class VoxelInfo:
-    """
-    Data class to collect info on voxelisation
-    The field xyz_bins represents the product:
-    len(xbins) * len(ybins) * len(zbins) which measures
-    the memory used for the voxelisation.
-
-    """
-    xyz_bins : float
-    bin_size : float
 
 @dataclass
 class VoxelHits:
     """
     Wrapper data class to give a type to the DataFrame
-    representing a collection of VoxelHits
+    representing a collection of VoxelHits. In addition
+    to the inner DataFrame and the event_id
+    the class includes three parameters
 
+    - bin_size : describes the size of the voxel
+    - baryc    : True if the position of voxel computed from
+                 barycenter of the hits, False if computed from
+                 the average position of the bins.
+    - xyz_bins : defined as:
+                 xyz_bins = len(xbins) * len(ybins) * len(zbins) / 1e+6
+                 This parameter is proportional to the total number of bins
+                 involved in the voxelisation and used to control it.
+                 xyz_bins must be at most 1, to avoid memory issues
+                 (pd.cut with 10^6 voxels).
     """
-    df       : DataFrame
-    event_id : int
+    df        : DataFrame
+    event_id  : int
+    voxel_bin : float
+    baryc     : bool
+    xyz_bins  : float
 
     def __post_init__(self):
         """
@@ -221,7 +241,10 @@ class VoxelHits:
     def __repr__(self):
         s = f"""<{get_class_name(self)}>
         event number = {self.event_id}
-        Columns = {self.columns}
+        voxel bin    = {self.voxel_bin}
+        barycenter   = {self.baryc}
+        xyz_bins     = {self.xyz_bins}
+        Columns      = {self.columns}
         """
         return s
 

@@ -21,15 +21,15 @@ from nextflex.reco_functions import distance_between_two_voxels
 from nextflex.reco_functions import voxel_distance_pairs
 from nextflex.reco_functions import make_track_graphs
 from nextflex.reco_functions import gtrack_voxels
-from nextflex.reco_functions import write_gtracks_json
-from nextflex.reco_functions import load_gtracks_json
+from nextflex.io import write_event_gtracks_json
+from nextflex.io import load_event_gtracks_json
 from nextflex.reco_functions import GTrack
 
 def test_voxelize_hits(bbonu_hits_and_voxels):
     eventHits, voxelHits = bbonu_hits_and_voxels
     t12    = eventHits.df
     vt12df = voxelHits.df
-    vHitsBar, _ = voxelize_hits(eventHits, bin_size = 10, baryc = False)
+    vHitsBar = voxelize_hits(eventHits, bin_size = 10, baryc = False)
     gt12df = vHitsBar.df
     _, edx = np.histogram(np.abs(gt12df.x.values - vt12df.x.values))
     _, edy = np.histogram(np.abs(gt12df.y.values - vt12df.y.values))
@@ -49,9 +49,10 @@ def test_voxels_as_list(bbonu_hits_and_voxels):
     assert np.allclose(vlist, vt12df.values)
 
 
-def test_voxel_distances(voxel_list):
-    voxels = voxel_list
-    minimum_d, inclusive_d = voxel_distances(voxels)
+def test_voxel_distances(bbonu_hits_and_voxels):
+    _, voxelHits = bbonu_hits_and_voxels
+    voxels = get_voxels_as_list(voxelHits)
+    minimum_d, inclusive_d = voxel_distances(voxelHits)
     _, dist = np.histogram(minimum_d)
     assert dist[-1] < 10 # in mm
     _, dist = np.histogram(inclusive_d)
@@ -67,9 +68,8 @@ def test_make_track_graphs(bbonu_hits_and_voxels, voxel_list):
     vt12df       = voxelHits.df
     voxels       = voxel_list
     contiguity   = 20
-    gtracks      = make_track_graphs(voxels, contiguity)
-    gtv          = gtrack_voxels(gtracks[0], voxelHits.event_id)
-    gtvdf        = gtv.df
+    gtracks      = make_track_graphs(voxelHits, contiguity)
+    gtvdf        = gtrack_voxels(gtracks[0])
     assert np.allclose(vt12df.x.values, gtvdf.x.values)
     assert np.allclose(vt12df.energy.values, gtvdf.energy.values)
 
@@ -77,12 +77,25 @@ def test_make_track_graphs(bbonu_hits_and_voxels, voxel_list):
 def test_write_load_gtracks(bbonu_hits_and_voxels, voxel_list, FDATA):
     testFile     = os.path.join(FDATA,"testData",
                             'gtracks.json')
-    _, voxelHits = bbonu_hits_and_voxels
-    vt12df       = voxelHits.df
-    voxels       = voxel_list
-    contiguity   = 20
-    gtracks      = make_track_graphs(voxels, contiguity)
-    GTRKS        = [GTrack(gtr, i) for i, gtr in enumerate(gtracks)]
-    write_gtracks_json(GTRKS, testFile)
-    gtrks        = load_gtracks_json(testFile)
-    assert GTRKS[0].event_id == gtrks[0].event_id
+    eventGTracks = []
+    for event_id in range(10):
+        _, voxelHits = bbonu_hits_and_voxels
+        #vt12df       = voxelHits.df
+        #voxels       = voxel_list
+        contiguity   = 20
+        voxel_bin    = 10
+        gtracks      = make_track_graphs(voxelHits, contiguity)
+        GTRKS        = [GTrack(gtr, i, voxel_bin, contiguity)\
+                        for i, gtr in enumerate(gtracks)]
+        eventGTracks.append(GTRKS)
+
+    write_event_gtracks_json(eventGTracks, testFile)
+    eventGtraksFromFile  = load_event_gtracks_json(testFile)
+
+    for i, gTracks in enumerate(eventGtraksFromFile):
+        egTracks = eventGTracks[i] # tracks in the list of events
+        egtrack = egTracks[0] # first track
+        gtrack  = gTracks[0]
+    assert egtrack.event_id == gtrack.event_id
+    assert egtrack.voxel_bin == gtrack.voxel_bin
+    assert egtrack.contiguity == gtrack.contiguity

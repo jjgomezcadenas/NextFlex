@@ -68,10 +68,10 @@ def bbonu_mc_hits(FDATA):
 def bbonu_hits_and_voxels(FDATA):
     testFile      = os.path.join(FDATA,"testData",
                             'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.0.next.h5')
-    mcHits  = get_mc_hits(testFile)
-    t12     = get_event_hits_from_mchits(mcHits, event_id = 0)
-    vt12df, vtinfo  = voxelize_hits(t12, bin_size = 10, baryc = True)
-    return t12, vt12df
+    mcHits    = get_mc_hits(testFile)
+    eventHits = get_event_hits_from_mchits(mcHits, event_id = 0)
+    voxHits   = voxelize_hits(eventHits, bin_size = 10, baryc = True)
+    return eventHits, voxHits
 
 
 @pytest.fixture(scope='session')

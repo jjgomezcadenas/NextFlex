@@ -53,7 +53,6 @@ def decorator_timer(func):
         run_time   = end_time - start_time    # 3
         #print(f"Executed {func.__name__!r} in {run_time:.4f} secs")
         return value, run_time
-
     return wrapper
 
 
@@ -118,7 +117,6 @@ class GtrkStats:
     EnergyBlob2       : List[float] = field(default_factory=list)
 
 
-
 @dataclass
 class TrackRecoAnalysisSetup:
     recoSetup           : Setup
@@ -175,64 +173,55 @@ class TrackRecoAnalysisSetup:
         return self.__repr__()
 
 
-def save_to_JSON(acls, path, numpy_convert=True):
+def reco_gtrack_from_mc_hits(ifnames    : List[str],
+                             voxel_bin  : float,
+                             contiguity : float,
+                             topology   : str  = "all",
+                             event_type : str  = "bb0nu",
+                             baryc      : bool = True,
+                             debug      : bool = False,
+                             ic         : int  = 50)->Tuple[List[GTracks],
+                                                           TrackRecoStats,
+                                                           TrackRecoTiming,
+                                                           TrackRecoEventStats]:
     """
-    Converts reco analysis data classes to JSON and writes it to path
-    numpy_convert is True when the data needs to be converted
-    from type numpy (this happens for lists extracted from a DF)
+    Driver to reconstruct GraphTracks (or GTracks) from McHits.
+    Parameters:
+    - ifnames   :  list of input files
 
-    """
+    - voxel_bin :  size of the voxelisation
 
-    dcls = asdict(acls)
-    if numpy_convert:
-        facls = {k:[float(x) for x in v] for (k,v) in dcls.items()}
-    else:
-        facls = dcls
+    - contiguity : defines the distance needed for two voxels
+                   to be considered adyacent. This quantity is not
+                   equal to voxel_bin, since the positions of the voxels
+                   is computed from the barycenter (or the average)
+                   of the bins they contain, an thus the distance between
+                   voxel positions may well be larger than the voxel_bin.
+                   The value of contiguity must be chosen to minimise track
+                   splits while avoiding absorbing separate tracks into a
+                   single reconstructed track. A rule of thumb is to take
+                   contiguity as 2 x voxel_bin.
+    - topology  :  takes values "primary" or "all" and
+                   defines whether to consider
+                   hits from the primary electron(s)
+                   or from all the particles in the event.
 
-    # then write
-    with open(path, 'w') as fp:
-        json.dump(facls, fp)
+    - event_type : defines whether the event is a bb0nu or a 1e. This is
+                   needed to compute the true_extrema of the track.
 
-
-def load_from_JSON(path):
-    """
-    Reads a JSON object as a dict
-
-    """
-    with open(path) as json_file:
-        jdict = json.load(json_file)
-    return jdict
-
-
-def reco_gtrack(ifnames    : List[str],
-                topology   : str,
-                voxel_bin  : float,
-                contiguity : float,
-                debug      : bool = False,
-                ic         : int = 50)->Tuple[List[GTracks],
-                                              TrackRecoStats,
-                                              TrackRecoTiming,
-                                              TrackRecoEventStats]:
-    """
-    Driver to reconstruct GraphTracks (or GTracks), including
-    statistics and timing book keeping.
-
-    - topology takes values "primary" or "all" and defines whether to consider
-    hits from the primary electrons or from all the particles in the event.
-
-    - voxel_bin defines the size of the voxelization cubits (aka voxels)
-
-    - contiguity defines the distance needed for two voxels to be considered
-    adyacent
+    - baryc      : Whether to use barycenter of average to determine the
+                   voxel position.
 
     """
 
     assert topology == "primary" or topology == "all"
+    assert event_type == "bb0nu" or event_type == "1e"
 
     trs  = TrackRecoStats()
     trt  = TrackRecoTiming()
     tres = TrackRecoEventStats(ifnames, voxel_bin, contiguity)
-    GtEvent = []
+    GtEvent   = []
+    tExtrema  = []
 
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
@@ -241,53 +230,51 @@ def reco_gtrack(ifnames    : List[str],
 
             if tres.f_total % ic == 0:
                 print(f'file number = {tres.f_total}, name={ifname}')
+
+            # 1. Get McHits and the event list
             mcHits, time = dt_get_mc_hits(ifname)
             trt.TimeMcHits.append(time)
-
             events = mcHits.event_list()
             if debug:
                 print(f'event list = {events}')
 
+            # 2. Loop over the event list
             for event_id in events:
-
                 tres.e_total+=1
                 if debug:
                     print(f'event number = {tres.e_total}')
 
-                # Get the Mc Hits in the event. Depending on the topology
-                # get the hits corresponding to primary particles or to all
-                # particles in the event
+                # 3. Get the EventHits from the McHits.
+                eventHits, time = dt_get_event_hits_from_mchits(mcHits,
+                                                                event_id,
+                                                                topology,
+                                                                event_type)
 
-                mchits, time = dt_get_event_hits_from_mchits(mcHits,
-                                                    event_id     = event_id,
-                                                    particle_type = topology)
-
+                # 4. Get the true extrema
+                true_extrema = get_true_extrema(eventHits, event_id, event_type)
+                tExtrema.append(true_extrema)
                 trt.TimeEvtHits.append(time)
-                trs.NumberMCHits.append(mchits.df.energy.count())
-                trs.EnergyMCHits.extend(mchits.df.energy.values)
-                trs.TotalEnergyMCHits.append(mchits.df.energy.sum())
 
-                # Voxelize the track in cubits of bin_size
-                vox, time = dt_voxelize_hits(mchits,
-                                             bin_size = voxel_bin,
-                                             baryc    = True)
-                vt12, vtinfo = vox
+                # 5. Voxelize the track in cubits of bin_size
+                voxHits, time = dt_voxelize_hits(eventHits, voxel_bin, baryc)
+                vt12df = voxHits.df
                 trt.TimeVoxHits.append(time)
-                trt.XyzBins.append(vtinfo.xyz_bins)
-                trt.BinSize.append(vtinfo.bin_size)
 
-                vt12df = vt12.df
-                voxels = get_voxels_as_list(vt12)
-
-                minimum_d, _ = voxel_distances(voxels)
-                trs.MinimumDistVoxels.append(np.max(minimum_d))
-
-                trs.NumberOfVoxels.append(len(voxels))
-                trs.VoxelEnergyKeV.append(vt12df.energy.mean()/keV)
-                trs.HitsPerVoxel.append(vt12df.nhits.count())
-
-                gtracks, time = dt_make_track_graphs(voxels, contiguity)
+                # 6. make graph-tracks
+                gtracks, time = dt_make_track_graphs(voxHits, contiguity)
                 trt.TimeGT.append(time)
+
+                # stats
+                trs.NumberMCHits.append(eventHits.df.energy.count())
+                trs.EnergyMCHits.append(eventHits.df.energy.mean()/keV)
+                trs.TotalEnergyMCHits.append(eventHits.df.energy.sum())
+                trt.XyzBins.append(voxHits.xyz_bins)
+                trt.BinSize.append(voxHits.bin_size)
+                minimum_d, _ = voxel_distances(voxHits)
+                trs.MinimumDistVoxels.append(np.max(minimum_d))
+                trs.NumberOfVoxels.append(len(vt12df))
+                trs.VoxelEnergyKeV.append(vt12df.energy.mean()/keV)
+                trs.HitsPerVoxel.append(vt12df.nhits.mean())
                 trs.NumberRecTrks.append(len(gtracks))
 
                 if len(gtracks) == 0:
@@ -297,7 +284,8 @@ def reco_gtrack(ifnames    : List[str],
                     if debug:
                         print(f"number of reco tracks = {len(gtracks)}")
 
-                    GTRKS = [GTrack(gtr, event_id) for gtr in gtracks]
+                    GTRKS = [GTrack(gtr, event_id, voxel_bin, contiguity)\ 
+                             for gtr in gtracks]
 
                     if len(gtracks) == 1:
                         tres.e_gt+=1
@@ -308,7 +296,7 @@ def reco_gtrack(ifnames    : List[str],
     print(f""" Total events analyzed = {tres.e_total},
                Events with a single track = {tres.e_gt}""")
 
-    return GtEvent, trs, tres, trt
+    return GtEvent, tExtrema, trs, tres, trt
 
 
 def gtrack_df(gtrksEvt : List[List[GTrack]], rb : float)->GraphTracks:
@@ -447,6 +435,7 @@ def distance_between_extrema(df : DataFrame)->DataFrame:
     compute_distances(df, event_list, 'e2', DE2)
     data ={'distances_e1' : DE1, 'distances_e2' : DE2}
     return pd.DataFrame(data)
+
 
 def reco_gtrack_blobs(gtrks : List[nx.Graph], rb = 10):
     gs = GtrkStats()

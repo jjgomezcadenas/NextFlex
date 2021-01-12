@@ -18,7 +18,6 @@ from typing      import TypeVar
 
 from nextflex.types import EventHits
 from nextflex.types import VoxelHits
-from nextflex.types import VoxelInfo
 
 Voxel = TypeVar('Voxel', Tuple[float], np.array)  # define voxel as type
 #
@@ -33,30 +32,37 @@ class GTrack:
     uid      : A unique identifier of the track
 
     """
-    gt       : nx.Graph
-    event_id : int
-    uid      : str  = ''
+    gt         : nx.Graph
+    event_id   : int
+    voxel_bin  : float
+    contiguity : float
+
 
     def __post_init__(self):
-        self.uid         = uuid.uuid1()
-        self.extrema     = {}
-        self.voxels      = get_voxels_as_list(gtrack_voxels(self.gt,
-                                                           self.event_id))
-        self.voxels_df  = pd.DataFrame(self.voxels, columns =['x', 'y', 'z',
-                                                             'energy', 'nhits'])
+        #self.uid         = uuid.uuid1()
+        self.voxels     = self.gt.nodes()
+        self.voxels_df  = pd.DataFrame(self.voxels,
+                                       columns=['x','y','z','energy', 'nhits'])
+        self.extrema    = {}
         self.distances  = shortest_paths(self.gt)
         #extrema 1 and 2
         e1, e2, self.length = find_extrema_and_length_from_dict(self.distances)
         self.extrema['e1'] = e1
         self.extrema['e2'] = e2
+        p1 = pd.DataFrame(self.extrema).T
+        p1.columns=['x','y','z','e', 'nhits']
+        self.extrema_df = p1
 
     def __repr__(self):
         s = f"""
         <GTrack>:
-        event_id         = {self.event_id}
-        number of voxels = {len(self.voxels)}
-        extrema voxels: e1 = {self.extrema['e1']}, e2 = {self.extrema['e2']}
-        track length: = {self.length} mm
+        event_id           = {self.event_id}
+        voxel bin          = {self.voxel_bin}
+        contiguity         = {self.contiguity}
+        number of voxels   = {len(self.voxels)}
+        extrema voxels: e1 = {self.extrema['e1']},
+                        e2 = {self.extrema['e2']}
+        track length:      = {self.length} mm
         """
         return s
 
@@ -70,96 +76,14 @@ class GTracks:
     """
     gtracks         : List[GTrack] = field(default_factory=list)
 
-def write_event_gtracks_json(egtrk : List[GTracks], path : str):
-    """
-    Writes a list of gtracks to a file using json format
-
-    """
-    devt = {}
-    for i, gtrks in enumerate(egtrk): # loop over events
-        # Create a dictionary of json objects (from networkx objects)
-        dgtrk = {int(gtrks[i].event_id):nx.node_link_data(gtrks[i].gt)\
-             for i, _ in enumerate(gtrks)}
-
-        # and add to the dictionary of events
-        devt[i] = dgtrk
-
-    # write to disk
-    with open(path, 'w') as fp:
-        json.dump(devt, fp)
-
-
-def load_event_gtracks_json(path : str)->List[GTracks]:
-    """
-    Loads a list of gtracks in json format from file
-
-    """
-    # First load the json object from file
-
-    with open(path) as json_file:
-        jdevt = json.load(json_file)
-
-    # then recreate the list of GTracks
-    ETRKS = []
-    for _, dgtrk in jdevt.items():
-        GTRKS = []
-        for key, values in dgtrk.items():
-            gt = nx.node_link_graph(values)
-            event_id = int(key)
-            GTRKS.append(GTrack(gt,event_id))
-        ETRKS.append(GTRKS)
-    return ETRKS
-
-
-def write_gtracks_json(gtrks : List[GTrack], path : str):
-    """
-    Writes a list of gtracks to a file using json format
-
-    """
-    # first create a dictionary of json objects (from networkx objects)
-    dgtrk = {int(gtrks[i].event_id):nx.node_link_data(gtrks[i].gt)\
-             for i, _ in enumerate(gtrks)}
-
-    # then write to disk
-    with open(path, 'w') as fp:
-        json.dump(dgtrk, fp)
-
-
-def load_gtracks_json(path : str)->List[GTrack]:
-    """
-    Loads a list of gtracks in json format from file
-
-    """
-    # First load the json object from file
-
-    with open(path) as json_file:
-        jdgtrk = json.load(json_file)
-
-    # then recreate the list of GTracks
-    GTRKS = []
-
-    for key, values in jdgtrk.items():
-        gt = nx.node_link_graph(values)
-        event_id = int(key)
-        GTRKS.append(GTrack(gt,event_id))
-    return GTRKS
-
 
 def voxelize_hits(hits     : EventHits,
                   bin_size : int,
-                  baryc    : bool = True)->Tuple[VoxelHits, VoxelInfo]:
+                  baryc    : bool = True)->VoxelHits:
     """
     Takes a EventHits objects wit fields (x,y,z,energy)
     voxelize the data in cubic voxels of size bin_size and return a
-    Tuple with two objects:
-
-    1. A VoxelHits object, which includes the field nhits (number of hits)
-    used to form the voxel. If the field barycenter is True,
-    compute the (x, y, z) position of the voxel as the baryc
-    of the hits, otherwise as the mean of the positions of the hits.
-
-    2. A VoxelInfo object which contains information concering the
-    voxelisation. 
+    VoxelHits object.
 
     """
 
@@ -234,7 +158,7 @@ def voxelize_hits(hits     : EventHits,
                                              .apply(voxelize_hits_mean)\
                                              .dropna().reset_index(drop=True)
 
-    return VoxelHits(vhits, hits.event_id), VoxelInfo(xyz_bins, bin_size)
+    return VoxelHits(vhits, hits.event_id, bin_size, baryc, xyz_bins)
 
 
 def get_voxels_as_list(voxelHits : VoxelHits)->List[Voxel]:
@@ -279,13 +203,14 @@ def distance_between_two_voxels(va : Voxel, vb : Voxel)->float:
     return np.linalg.norm(voxel_position(vb) - voxel_position(va))
 
 
-def voxel_distances(voxels : List[Voxel])->Tuple[np.array]:
+def voxel_distances(voxelHits : VoxelHits)->Tuple[np.array]:
     """
     Return a numpy array with the distance (inclusive) between any pair
     of voxels, and another array with the minimum distance between a
     voxel and all the others.
 
     """
+    voxels = get_voxels_as_list(voxelHits)
     DSTM = []
     DSTI = []
     for va in voxels:
@@ -309,7 +234,8 @@ def voxel_distance_pairs(voxels : List[Voxel])->Tuple[np.array]:
                      for va, vb in combinations(voxels, 2)])
 
 
-def make_track_graphs(voxels : List[Voxel], contiguity : float)->List[nx.Graph]:
+def make_track_graphs(voxelHits  : VoxelHits,
+                      contiguity : float)->List[nx.Graph]:
     """
     Make "graph-tracks" (gtracks) using networkx:
 
@@ -325,6 +251,8 @@ def make_track_graphs(voxels : List[Voxel], contiguity : float)->List[nx.Graph]:
     def connected_component_subgraphs(G):
         return (G.subgraph(c).copy() for c in nx.connected_components(G))
 
+
+    voxels = get_voxels_as_list(voxelHits)
     voxel_graph = nx.Graph()
     voxel_graph.add_nodes_from(voxels)
     for va, vb in combinations(voxels, 2):
@@ -334,13 +262,12 @@ def make_track_graphs(voxels : List[Voxel], contiguity : float)->List[nx.Graph]:
     return list(connected_component_subgraphs(voxel_graph))
 
 
-def gtrack_voxels(gtrack : nx.Graph, event_id : int)->VoxelHits:
+def gtrack_voxels(gtrack : nx.Graph)->pd.DataFrame:
     """
     Return a DataFrame of voxels from a gtrack
 
     """
-    vdf = pd.DataFrame(gtrack.nodes(), columns=['x','y','z','energy', 'nhits'])
-    return VoxelHits(vdf, event_id)
+    return pd.DataFrame(gtrack.nodes(), columns=['x','y','z','energy', 'nhits'])
 
 
 def find_extrema_and_length_from_dict(distance : Dict[Voxel,
@@ -406,5 +333,3 @@ def blob_energy(gt : GTrack, rb : float, extreme : str ='e1', unit=keV)->float:
     """
     voxels = voxels_in_blob(gt, rb, extreme).df
     return voxels.energy.sum() / unit
-    # energies = np.array([vox[3] for vox in voxels])
-    # return np.sum(energies) / unit
