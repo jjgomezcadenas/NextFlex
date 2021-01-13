@@ -311,7 +311,7 @@ def find_extrema_and_length(track: nx.Graph) -> Tuple[Voxel, Voxel, float]:
     return e_a, e_b, tl
 
 
-def voxels_in_blob(gt : GTrack, rb : float, extreme : str ='e1')->VoxelHits:
+def voxels_in_blob(gt : GTrack, rb : float, extreme : str ='e1')->pd.DataFrame:
     """
     Return the a VoxelHits object with the voxels contained in a blob
     of radius rb around the extreme.
@@ -321,8 +321,8 @@ def voxels_in_blob(gt : GTrack, rb : float, extreme : str ='e1')->VoxelHits:
     vb = [voxel for voxel, distance in distances_from_extreme.items()\
           if distance < rb]
 
-    return VoxelHits(pd.DataFrame(vb,
-                     columns =['x', 'y', 'z', 'energy', 'nhits']), gt.event_id)
+    return pd.DataFrame(vb,
+                     columns =['x', 'y', 'z', 'energy', 'nhits'])
 
 
 def blob_energy(gt : GTrack, rb : float, extreme : str ='e1', unit=keV)->float:
@@ -331,5 +331,5 @@ def blob_energy(gt : GTrack, rb : float, extreme : str ='e1', unit=keV)->float:
     the extreme.
 
     """
-    voxels = voxels_in_blob(gt, rb, extreme).df
+    voxels = voxels_in_blob(gt, rb, extreme)
     return voxels.energy.sum() / unit

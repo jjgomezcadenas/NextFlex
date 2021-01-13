@@ -25,10 +25,12 @@ from tics.pd_tics       import slice_and_select_df
 from nextflex.types import EventHits
 from nextflex.types import VoxelHits
 from nextflex.types import GraphTracks
+from nextflex.types import EventTrueExtrema
 
 from nextflex.core import Setup
 from nextflex.reco_functions import Voxel
 from nextflex.mctrue_functions import get_mc_hits
+from nextflex.mctrue_functions import get_true_extrema
 from nextflex.mctrue_functions import get_event_hits_from_mchits
 from nextflex.reco_functions import voxelize_hits
 from nextflex.reco_functions import make_track_graphs
@@ -40,6 +42,13 @@ from nextflex.reco_functions import voxels_in_blob
 from nextflex.reco_functions import voxel_energy
 from nextflex.reco_functions import voxel_nhits
 from nextflex.reco_functions import blob_energy
+
+#from nextflex.io import write_gtracks_json
+#from nextflex.io import load_gtracks_json
+from nextflex.io import write_event_gtracks_json
+from nextflex.io import load_event_gtracks_json
+from nextflex.io import save_to_JSON
+from nextflex.io import load_from_JSON
 
 import json
 
@@ -60,34 +69,36 @@ dt_get_mc_hits = decorator_timer(get_mc_hits)
 dt_get_event_hits_from_mchits = decorator_timer(get_event_hits_from_mchits)
 dt_voxelize_hits = decorator_timer(voxelize_hits)
 dt_make_track_graphs = decorator_timer(make_track_graphs)
-
+dt_get_true_extrema = decorator_timer(get_true_extrema)
 
 @dataclass
 class TrackRecoStats:
-    NumberMCHits         : List[float] = field(default_factory=list)
-    EnergyMCHits         : List[float] = field(default_factory=list)
-    TotalEnergyMCHits    : List[float] = field(default_factory=list)
-    NumberOfVoxels       : List[float] = field(default_factory=list)
-    MinimumDistVoxels    : List[float] = field(default_factory=list)
-    VoxelEnergyKeV       : List[float] = field(default_factory=list)
-    HitsPerVoxel         : List[float] = field(default_factory=list)
-    NumberRecTrks        : List[float] = field(default_factory=list)
+    numberEventHits      : List[float] = field(default_factory=list)
+    energyEventHits      : List[float] = field(default_factory=list)
+    totalEnergyEventHits : List[float] = field(default_factory=list)
+    numberOfVoxels       : List[float] = field(default_factory=list)
+    minimumDistVoxels    : List[float] = field(default_factory=list)
+    voxelEnergyKeV       : List[float] = field(default_factory=list)
+    hitsPerVoxel         : List[float] = field(default_factory=list)
+    numberRecTrks        : List[float] = field(default_factory=list)
 
 
 @dataclass
 class TrackRecoTiming:
-    TimeMcHits  : List[float] = field(default_factory=list)
-    TimeEvtHits : List[float] = field(default_factory=list)
-    TimeVoxHits : List[float] = field(default_factory=list)
-    TimeGT      : List[float] = field(default_factory=list)
-    XyzBins     : List[float] = field(default_factory=list)
-    BinSize     : List[float] = field(default_factory=list)
+    timeEvtHits : List[float] = field(default_factory=list)
+    timeTrueE   : List[float] = field(default_factory=list)
+    timeVoxHits : List[float] = field(default_factory=list)
+    timeGT      : List[float] = field(default_factory=list)
+    xyzBins     : List[float] = field(default_factory=list)
+    voxelBin    : List[float] = field(default_factory=list)
 
 @dataclass
 class TrackRecoEventStats:
-    ifnames    : List[str]
     voxel_bin  : int
     contiguity : float
+    topology   : str
+    event_type : str
+    baryc      : bool
     f_total    : int = 0
     e_total    : int = 0
     e_gt       : int = 0
@@ -95,12 +106,14 @@ class TrackRecoEventStats:
     def __repr__(self):
         s = f"""
         <Track Reconstruction Statistics>
-        first file analyzed        = {self.ifnames[0]}
-        number of files analyzed   = {self.f_total}
-        size of voxel bins         = {self.voxel_bin}
-        contiguity parameter       = {self.contiguity}
-        Number of events analyized = {self.e_total}
-        Number of events 1 GT      = {self.e_gt}
+        size of voxel bins          = {self.voxel_bin}
+        contiguity parameter        = {self.contiguity}
+        topology                    = {self.topology}
+        event type                  = {self.event_type}
+        voxels from hits barycenter = {self.baryc}
+        number of files analyzed    = {self.f_total}
+        number of events analyized  = {self.e_total}
+        number of events 1 GT       = {self.e_gt}
         """
         return s
 
@@ -118,15 +131,21 @@ class GtrkStats:
 
 
 @dataclass
-class TrackRecoAnalysisSetup:
+class RecoGtrackFromMcHits:
+    """
+    This class collects all information relevant for the topological
+    analysis of reconstructed tracks (from monte carlo hits), plus
+    statistics information.
+    """
     recoSetup           : Setup
     voxel_bin           : float
     contiguity          : float
-    gtracks             : List[GTracks]
-    trackRecoStats      : TrackRecoStats
-    trackRecoEventStats : TrackRecoEventStats
-    trackRecoTiming     : TrackRecoTiming
-
+    gtracks             : List[GTracks]        = None
+    tExtrema            : pd.DataFrame         = None
+    trackRecoStats      : pd.DataFrame         = None
+    trackRecoTiming     : pd.DataFrame         = None
+    tVoxelizationXYZ    : pd.DataFrame         = None
+    trackRecoEventStats : TrackRecoEventStats  = None
 
     def filenames_(self, fileLabel):
         name = f"{fileLabel}_{self.name}"
@@ -140,6 +159,8 @@ class TrackRecoAnalysisSetup:
         fileTrackRecoTiming      = self.filenames_("TrackRecoTiming")
         fileTrackRecoEventStats  = self.filenames_("TrackRecoEventStats")
         fileGTracks              = self.filenames_("GTracks")
+        fileTExtrema             = self.filenames_("TExtrema")
+        fileTVoxelizationXYZ     = self.filenames_("TVoxelizationXY")
 
         self.pathTrackRecoStats       = os.path.join(self.recoSetup.analysis,
                                                      fileTrackRecoStats)
@@ -149,11 +170,45 @@ class TrackRecoAnalysisSetup:
                                                      fileTrackRecoEventStats)
         self.pathGTracks              = os.path.join(self.recoSetup.analysis,
                                                      fileGTracks)
+        self.pathTExtrema             = os.path.join(self.recoSetup.analysis,
+                                                     fileTExtrema)
+        self.pathTVoxelizationXYZ     = os.path.join(self.recoSetup.analysis,
+                                                     fileTVoxelizationXYZ)
 
-        self.fileTrackRecoStats       = f"{self.pathTrackRecoStats}.json"
-        self.fileTrackRecoTiming      = f"{self.pathTrackRecoTiming}.json"
+        self.fileTrackRecoStats       = f"{self.pathTrackRecoStats}.pd"
+        self.fileTrackRecoTiming      = f"{self.pathTrackRecoTiming}.pd"
+        self.fileTVoxelizationXYZ     = f"{self.pathTVoxelizationXYZ}.pd"
+        self.fileTExtrema             = f"{self.pathTExtrema}.pd"
         self.fileTrackRecoEventStats  = f"{self.pathTrackRecoEventStats}.json"
         self.fileGTracks              = f"{self.pathGTracks}.json"
+
+    def write_setup(self):
+        """
+        Write to file
+
+        """
+        write_event_gtracks_json(self.gtracks, self.fileGTracks )
+        self.tExtrema         .to_csv(self.fileTExtrema)
+        self.trackRecoStats   .to_csv(self.fileTrackRecoStats)
+        self.trackRecoTiming  .to_csv(self.fileTrackRecoTiming)
+        self.tVoxelizationXYZ .to_csv(self.fileTVoxelizationXYZ)
+        save_to_JSON(self.trackRecoEventStats,
+                     self.fileTrackRecoEventStats,
+                     numpy_convert=False)
+
+
+    def load_setup(self):
+        """
+        Load from file
+        """
+        self.trackRecoStats      = pd.read_csv(self.fileTrackRecoStats)
+        self.trackRecoTiming     = pd.read_csv(self.fileTrackRecoTiming)
+        self.tExtrema            = pd.read_csv(self.fileTExtrema)
+        self.tVoxelizationXYZ    = pd.read_csv(self.fileTVoxelizationXYZ)
+        self.trackRecoEventStats = TrackRecoEventStats(**load_from_JSON(\
+                                        self.fileTrackRecoEventStats))
+        self.gtracks             = load_event_gtracks_json(\
+                                                     self.fileGTracks)
 
 
     def __repr__(self):
@@ -165,6 +220,8 @@ class TrackRecoAnalysisSetup:
         path for TrackRecoTiming     = {self.fileTrackRecoTiming}
         path for TrackRecoEventStats = {self.fileTrackRecoEventStats}
         path for GTracks             = {self.fileGTracks}
+        path for TExtrema            = {self.fileTExtrema}
+        path for tVoxelizationXYZ    = {self.tVoxelizationXYZ}
 
         """
         return s
@@ -173,21 +230,20 @@ class TrackRecoAnalysisSetup:
         return self.__repr__()
 
 
-def reco_gtrack_from_mc_hits(ifnames    : List[str],
+def reco_gtrack_from_mc_hits(setup      : Setup,
                              voxel_bin  : float,
                              contiguity : float,
                              topology   : str  = "all",
                              event_type : str  = "bb0nu",
                              baryc      : bool = True,
                              debug      : bool = False,
-                             ic         : int  = 50)->Tuple[List[GTracks],
-                                                           TrackRecoStats,
-                                                           TrackRecoTiming,
-                                                           TrackRecoEventStats]:
+                             file_range : Tuple[int,int] = (0, -1),
+                             ic         : int  = 50)->RecoGtrackFromMcHits:
     """
     Driver to reconstruct GraphTracks (or GTracks) from McHits.
     Parameters:
-    - ifnames   :  list of input files
+    - setup     :  An instance of the Setup class defining the
+                   run configuration
 
     - voxel_bin :  size of the voxelisation
 
@@ -219,13 +275,16 @@ def reco_gtrack_from_mc_hits(ifnames    : List[str],
 
     trs  = TrackRecoStats()
     trt  = TrackRecoTiming()
-    tres = TrackRecoEventStats(ifnames, voxel_bin, contiguity)
+    tres = TrackRecoEventStats(voxel_bin, contiguity, topology,
+                               event_type, baryc)
     GtEvent   = []
     tExtrema  = []
 
+    fi = file_range[0]
+    fl = file_range[1]
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter("always")
-        for ifname in ifnames:
+        for ifname in setup.ifnames[fi:fl]:
             tres.f_total+=1
 
             if tres.f_total % ic == 0:
@@ -233,7 +292,6 @@ def reco_gtrack_from_mc_hits(ifnames    : List[str],
 
             # 1. Get McHits and the event list
             mcHits, time = dt_get_mc_hits(ifname)
-            trt.TimeMcHits.append(time)
             events = mcHits.event_list()
             if debug:
                 print(f'event list = {events}')
@@ -245,37 +303,48 @@ def reco_gtrack_from_mc_hits(ifnames    : List[str],
                     print(f'event number = {tres.e_total}')
 
                 # 3. Get the EventHits from the McHits.
-                eventHits, time = dt_get_event_hits_from_mchits(mcHits,
+                eventHits, time   = dt_get_event_hits_from_mchits(mcHits,
                                                                 event_id,
                                                                 topology,
                                                                 event_type)
+                if debug:
+                    print(f' number of hits in event = {len(eventHits.df)}')
+
+                trt.timeEvtHits.append(time)
 
                 # 4. Get the true extrema
-                true_extrema = get_true_extrema(eventHits, event_id, event_type)
+                true_extrema, time = dt_get_true_extrema(mcHits,
+                                                event_id,
+                                                event_type)
                 tExtrema.append(true_extrema)
-                trt.TimeEvtHits.append(time)
+                trt.timeTrueE.append(time)
 
-                # 5. Voxelize the track in cubits of bin_size
+                # 5. Voxelize the track in cubits of size voxel_bin
                 voxHits, time = dt_voxelize_hits(eventHits, voxel_bin, baryc)
                 vt12df = voxHits.df
-                trt.TimeVoxHits.append(time)
+
+                if debug:
+                    print(f' number of voxels in event = {len(vt12df)}')
+
+                trt.timeVoxHits.append(time)
 
                 # 6. make graph-tracks
                 gtracks, time = dt_make_track_graphs(voxHits, contiguity)
-                trt.TimeGT.append(time)
+                trt.timeGT.append(time)
+                trt.xyzBins.append(voxHits.xyz_bins)
+                trt.voxelBin.append(voxHits.voxel_bin)
 
                 # stats
-                trs.NumberMCHits.append(eventHits.df.energy.count())
-                trs.EnergyMCHits.append(eventHits.df.energy.mean()/keV)
-                trs.TotalEnergyMCHits.append(eventHits.df.energy.sum())
-                trt.XyzBins.append(voxHits.xyz_bins)
-                trt.BinSize.append(voxHits.bin_size)
+                trs.numberEventHits.append(eventHits.df.energy.count())
+                trs.energyEventHits.append(eventHits.df.energy.mean()/keV)
+                trs.totalEnergyEventHits.append(eventHits.df.energy.sum())
+
                 minimum_d, _ = voxel_distances(voxHits)
-                trs.MinimumDistVoxels.append(np.max(minimum_d))
-                trs.NumberOfVoxels.append(len(vt12df))
-                trs.VoxelEnergyKeV.append(vt12df.energy.mean()/keV)
-                trs.HitsPerVoxel.append(vt12df.nhits.mean())
-                trs.NumberRecTrks.append(len(gtracks))
+                trs.minimumDistVoxels.append(np.max(minimum_d))
+                trs.numberOfVoxels.append(len(vt12df))
+                trs.voxelEnergyKeV.append(vt12df.energy.mean()/keV)
+                trs.hitsPerVoxel.append(vt12df.nhits.mean())
+                trs.numberRecTrks.append(len(gtracks))
 
                 if len(gtracks) == 0:
                     print(f" Could not reconstruct any track")
@@ -284,7 +353,7 @@ def reco_gtrack_from_mc_hits(ifnames    : List[str],
                     if debug:
                         print(f"number of reco tracks = {len(gtracks)}")
 
-                    GTRKS = [GTrack(gtr, event_id, voxel_bin, contiguity)\ 
+                    GTRKS = [GTrack(gtr, event_id, voxel_bin, contiguity)\
                              for gtr in gtracks]
 
                     if len(gtracks) == 1:
@@ -296,10 +365,41 @@ def reco_gtrack_from_mc_hits(ifnames    : List[str],
     print(f""" Total events analyzed = {tres.e_total},
                Events with a single track = {tres.e_gt}""")
 
-    return GtEvent, tExtrema, trs, tres, trt
+    trtdf = pd.DataFrame({"t_evt_hits"  : trt.timeEvtHits,
+                      "t_true_extrema"  : trt.timeTrueE,
+                      "t_voxelize_hits" : trt.timeVoxHits,
+                      "t_graph_tracks"  : trt.timeGT,
+                      "xyz_bins"        : trt.xyzBins,
+                      "voxel_bin"       : trt.voxelBin})
+
+    trsdf = pd.DataFrame({"n_evt_hits"  : trs.numberEventHits,
+                  "energy_evt_hits"     : trs.energyEventHits,
+                  "tot_energy_evt_hits" : trs.totalEnergyEventHits,
+                  "min_dist_voxels"     : trs.minimumDistVoxels,
+                  "n_voxels"            : trs.numberOfVoxels,
+                  "energy_voxels"       : trs.voxelEnergyKeV,
+                  "n_hits_voxels"       : trs.hitsPerVoxel,
+                  "n_rec_gtrks"         : trs.numberRecTrks})
+
+    txyzdf= pd.DataFrame({"time":trt.timeVoxHits, "xyz_bins":trt.xyzBins})
+
+    # fill  the RecoGtrackFromMcHits data
+    rgt                     = RecoGtrackFromMcHits(setup,
+                                                   voxel_bin,
+                                                   contiguity)
+    rgt.gtracks             = GtEvent
+    rgt.tExtrema            = tExtrema_df(tExtrema)
+    rgt.trackRecoStats      = trsdf
+    rgt.trackRecoTiming     = trtdf
+    rgt.trackRecoEventStats = tres
+    rgt.tVoxelizationXYZ    = txyzdf
+
+    return rgt
+    #return GtEvent, tExtrema, trsdf, trtdf, txyzdf, tres
 
 
-def gtrack_df(gtrksEvt : List[List[GTrack]], rb : float)->GraphTracks:
+def gtrack_df(gtrksEvt : List[GTracks],
+              rb : float)->pd.DataFrame:
     """
     Output a DataFrame organised by event number and track number
     Compute blob information
@@ -309,40 +409,65 @@ def gtrack_df(gtrksEvt : List[List[GTrack]], rb : float)->GraphTracks:
     data = []
     for evt_number, gtrks in enumerate(gtrksEvt):
         for trk_number, gt in enumerate(gtrks):
-            vb1 = voxels_in_blob(gt, rb, extreme ='e1').df
-            vb2 = voxels_in_blob(gt, rb, extreme ='e2').df
+            vb1 = voxels_in_blob(gt, rb, extreme ='e1')
+            vb2 = voxels_in_blob(gt, rb, extreme ='e2')
             index_tuples.append((evt_number, trk_number))
-            data.append({'gtrack_uid': gt.uid,
-                         'event_id': gt.event_id,
-                         'nvox': len(gt.voxels),
-                         'tlength' : gt.length,
-                         'x_e1' : gt.extrema['e1'][0],
-                         'y_e1' : gt.extrema['e1'][1],
-                         'z_e1' : gt.extrema['e1'][2],
-                         'energy_e1' : gt.extrema['e1'][3],
-                         'nvox_b1': vb1.energy.count(),
-                         'energy_b1' : blob_energy(gt, rb, extreme  ='e1'),
-                         'x_e2' : gt.extrema['e2'][0],
-                         'y_e2' : gt.extrema['e2'][1],
-                         'z_e2' : gt.extrema['e2'][2],
-                         'energy_e2' : gt.extrema['e2'][3],
-                         'nvox_b2': vb2.energy.count(),
-                         'energy_b2' : blob_energy(gt, rb, extreme  ='e2'),
+            data.append({'event_id'    : gt.event_id,
+                         'track_id'    : trk_number,
+                         'n_voxels'    : len(gt.voxels),
+                         'trak_length' : gt.length,
+                         'energy'      : gt.voxels_df.energy.sum() / keV,
+                         'x_e1'        : gt.extrema['e1'][0],
+                         'y_e1'        : gt.extrema['e1'][1],
+                         'z_e1'        : gt.extrema['e1'][2],
+                         'energy_e1'   : gt.extrema['e1'][3],
+                         'nvox_b1'     : vb1.energy.count(),
+                         'energy_b1'   : blob_energy(gt, rb, extreme  ='e1'),
+                         'x_e2'        : gt.extrema['e2'][0],
+                         'y_e2'        : gt.extrema['e2'][1],
+                         'z_e2'        : gt.extrema['e2'][2],
+                         'energy_e2'   : gt.extrema['e2'][3],
+                         'nvox_b2'     : vb2.energy.count(),
+                         'energy_b2'   : blob_energy(gt, rb, extreme  ='e2'),
                         })
     index = pd.MultiIndex.from_tuples(index_tuples,
                                       names=["evt_number","trk_number"])
 
-    return GraphTracks(pd.DataFrame(data,index))
+    return pd.DataFrame(data,index)
 
 
-def event_list_by_multiplicity(gtdf : GraphTracks)->Tuple[List[int], List[int]]:
+def tExtrema_df(tExtrema : List[EventTrueExtrema])->pd.DataFrame:
+    """
+    Return the track extrema as a DF
+
+    """
+    index_tuples = []
+    data = []
+    for evt_number, text in enumerate(tExtrema):
+        te = text.df
+        for i in te.index:
+            index_tuples.append((evt_number, i))
+            data.append({'x'      : te.x.values[i],
+                         'y'      : te.y.values[i],
+                         'z'      : te.z.values[i],
+                         'time'   : te.time.values[i],
+                         'energy' : te.energy.values[i] / keV})
+
+    index = pd.MultiIndex.from_tuples(index_tuples,
+                                      names=["evt_number","extreme_number"])
+
+    return pd.DataFrame(data,index)
+
+
+def event_list_by_multiplicity(gtdf : pd.DataFrame)->Tuple[List[int],
+                                                           List[int]]:
     """
     Return two event lists:
     1. Events with single tracks (EST) list
     2. Events with multiple tracks (EMT) list
 
     """
-    df = gtdf.df
+    df = gtdf
     event_list = get_index_slice_from_multi_index(df,0)
     EST = []
     EMT = []
@@ -352,7 +477,7 @@ def event_list_by_multiplicity(gtdf : GraphTracks)->Tuple[List[int], List[int]]:
         evt = slice_and_select_df(df,
                                   slices = (slice(event_number,event_number),
                                             slice(None,None)),
-                                  columns = ['nvox'])
+                                  columns = ['n_voxels'])
         if len(evt) == 1:
             EST.append(event_number)
         else:
@@ -360,9 +485,9 @@ def event_list_by_multiplicity(gtdf : GraphTracks)->Tuple[List[int], List[int]]:
     return EST, EMT
 
 
-def select_tracks_by_multiplicity(gtrks   : GraphTracks,
+def select_tracks_by_multiplicity(gtrks   : pd.DataFrame,
                                   trkList : List[int])->pd.DataFrame:
-    gtdf = gtrks.df
+    gtdf = gtrks
     cg = [x for x in gtdf.columns.values]
     gtevt = [slice_and_select_df(gtdf,
                              slices = (slice(event_id,event_id),
@@ -377,19 +502,17 @@ def select_gtrack_topology(gtrks : GraphTracks,
     """
     Take a GraphTracks object and return a DataFrame
     with selected objects by topology:
-        single -- single tracks
-        multi  -- multiple tracks
+        single    -- single tracks
+        multiple  -- multiple tracks
 
     """
+
+    assert topology == "single" or  topology == "multiple"
+
     st, mt = event_list_by_multiplicity(gtrks)
 
     if topology == "single":
-        #gt   = select_tracks_by_multiplicity(gtrks, st)
-        #gt1t = pd.DataFrame(gt.values,
-        #                     index=gt.index.droplevel(1),
-        #                     columns = gt.columns)
-        # return gt1t
-        return select_tracks_by_multiplicity(gtrks, st)
+            return select_tracks_by_multiplicity(gtrks, st)
     else:
         return select_tracks_by_multiplicity(gtrks, mt)
 
@@ -401,10 +524,10 @@ def distance_between_extrema(df : DataFrame)->DataFrame:
     """
     def compute_distances(df, event_list, extreme, DE):
         if extreme == "e1":
-            columns = ["nvox", "x_e1", "y_e1", "z_e1"]
+            columns = ["n_voxels", "x_e1", "y_e1", "z_e1"]
             c1      = ["x_e1", "y_e1", "z_e1"]
         else:
-            columns = ["nvox", "x_e2", "y_e2", "z_e2"]
+            columns = ["n_voxels", "x_e2", "y_e2", "z_e2"]
             c1      = ["x_e2", "y_e2", "z_e2"]
 
         for event_number in event_list:
