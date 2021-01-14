@@ -339,8 +339,13 @@ def reco_gtrack_from_mc_hits(setup      : Setup,
                 trs.energyEventHits.append(eventHits.df.energy.mean()/keV)
                 trs.totalEnergyEventHits.append(eventHits.df.energy.sum())
 
-                minimum_d, _ = voxel_distances(voxHits)
-                trs.minimumDistVoxels.append(np.max(minimum_d))
+
+                if len(vt12df) > 1:
+                    minimum_d, _ = voxel_distances(voxHits)
+                    trs.minimumDistVoxels.append(np.max(minimum_d))
+                else:
+                    trs.minimumDistVoxels.append(0)
+                
                 trs.numberOfVoxels.append(len(vt12df))
                 trs.voxelEnergyKeV.append(vt12df.energy.mean()/keV)
                 trs.hitsPerVoxel.append(vt12df.nhits.mean())
