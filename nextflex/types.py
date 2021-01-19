@@ -235,7 +235,9 @@ class VoxelHits:
         """
         self.columns : Tuple[str] = ('x', 'y', 'z', 'energy', 'nhits')
 
-        assert self.columns == tuple(self.df.columns)
+        #assert self.columns == tuple(self.df.columns)
+        if self.columns != tuple(self.df.columns):
+            print(f"error: can't voxelize: df = {self.df}")
 
 
     def __repr__(self):

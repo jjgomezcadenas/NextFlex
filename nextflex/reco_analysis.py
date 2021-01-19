@@ -153,13 +153,14 @@ class RecoGtrackFromMcHits:
 
     def __post_init__(self):
 
-        self.name =f"{self.recoSetup.name}_" + \
-        f"voxel_bin_{self.voxel_bin}_contiguity_{self.contiguity}"
+        #self.name =f"{self.recoSetup.name}_" + \
+        #f"voxel_bin_{self.voxel_bin}_contiguity_{self.contiguity}"
+        self.name = f"voxel_bin_{self.voxel_bin}_contiguity_{self.contiguity}"
         fileTrackRecoStats       = self.filenames_("TrackRecoStats")
         fileTrackRecoTiming      = self.filenames_("TrackRecoTiming")
         fileTrackRecoEventStats  = self.filenames_("TrackRecoEventStats")
         fileGTracks              = self.filenames_("GTracks")
-        fileTExtrema             = self.filenames_("TExtrema")
+        fileTExtrema             = "TExtrema"
         fileTVoxelizationXYZ     = self.filenames_("TVoxelizationXY")
 
         self.pathTrackRecoStats       = os.path.join(self.recoSetup.analysis,
@@ -185,7 +186,6 @@ class RecoGtrackFromMcHits:
     def write_setup(self):
         """
         Write to file
-
         """
         write_event_gtracks_json(self.gtracks, self.fileGTracks )
         self.tExtrema         .to_csv(self.fileTExtrema)
@@ -222,6 +222,54 @@ class RecoGtrackFromMcHits:
         path for GTracks             = {self.fileGTracks}
         path for TExtrema            = {self.fileTExtrema}
         path for tVoxelizationXYZ    = {self.tVoxelizationXYZ}
+        """
+        return s
+
+    def __str__(self):
+        return self.__repr__()
+
+
+@dataclass
+class TrueExtremaFromMcHits:
+    """
+    Writer for True Extrema.
+
+    """
+    recoSetup           : Setup
+    tExtrema            : pd.DataFrame
+
+    def filenames_(self, fileLabel):
+        name = f"{fileLabel}_{self.name}"
+        return name
+
+    def __post_init__(self):
+
+        self.name =f"{self.recoSetup.name}"
+
+        fileTExtrema              = self.filenames_("TExtrema")
+        self.pathTExtrema         = os.path.join(self.recoSetup.analysis,
+                                                     "TExtrema")
+        self.fileTExtrema             = f"{self.pathTExtrema}.pd"
+
+    def write_setup(self):
+        """
+        Write to file
+
+        """
+        self.tExtrema.to_csv(self.fileTExtrema)
+
+
+    def load_setup(self):
+        """
+        Load from file
+        """
+        self.tExtrema = pd.read_csv(self.fileTExtrema)
+
+
+    def __repr__(self):
+        s = f"""
+        True Extrema Write:      <{self.name}>:
+        path for TExtrema       = {self.fileTExtrema}
 
         """
         return s
@@ -304,18 +352,23 @@ def reco_gtrack_from_mc_hits(setup      : Setup,
 
                 # 3. Get the EventHits from the McHits.
                 eventHits, time   = dt_get_event_hits_from_mchits(mcHits,
-                                                                event_id,
-                                                                topology,
-                                                                event_type)
+                                                                 event_id,
+                                                                 topology,
+                                                                 event_type)
                 if debug:
                     print(f' number of hits in event = {len(eventHits.df)}')
+
+                if len(eventHits.df) <= 2:
+                    print(f"empty event! skip!")
+                    print(eventHits.df)
+                    continue
 
                 trt.timeEvtHits.append(time)
 
                 # 4. Get the true extrema
                 true_extrema, time = dt_get_true_extrema(mcHits,
-                                                event_id,
-                                                event_type)
+                                                         event_id,
+                                                         event_type)
                 tExtrema.append(true_extrema)
                 trt.timeTrueE.append(time)
 
@@ -345,7 +398,7 @@ def reco_gtrack_from_mc_hits(setup      : Setup,
                     trs.minimumDistVoxels.append(np.max(minimum_d))
                 else:
                     trs.minimumDistVoxels.append(0)
-                
+
                 trs.numberOfVoxels.append(len(vt12df))
                 trs.voxelEnergyKeV.append(vt12df.energy.mean()/keV)
                 trs.hitsPerVoxel.append(vt12df.nhits.mean())
@@ -403,6 +456,85 @@ def reco_gtrack_from_mc_hits(setup      : Setup,
     #return GtEvent, tExtrema, trsdf, trtdf, txyzdf, tres
 
 
+def true_extrema_from_mc_hits(setup     : Setup,
+                              topology   : str  = "all",
+                              event_type : str  = "bb0nu",
+                              debug      : bool = False,
+                              file_range : Tuple[int,int] = (0, -1),
+                              ic         : int  = 50)->TrueExtremaFromMcHits:
+    """
+    Find true extrema of tracks from McHits.
+    Parameters:
+    - setup     :  An instance of the Setup class defining the
+                   run configuration
+
+    - topology  :  takes values "primary" or "all" and
+                   defines whether to consider
+                   hits from the primary electron(s)
+                   or from all the particles in the event.
+
+    - event_type : defines whether the event is a bb0nu or a 1e. This is
+                   needed to compute the true_extrema of the track.
+
+    """
+
+    assert topology == "primary" or topology == "all"
+    assert event_type == "bb0nu" or event_type == "1e"
+
+    tExtrema  = []
+
+    fi = file_range[0]
+    fl = file_range[1]
+    f_total = 0
+    e_total = 0
+    e_gt    = 0
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        for ifname in setup.ifnames[fi:fl]:
+            f_total+=1
+
+            if f_total % ic == 0:
+                print(f'file number = {f_total}, name={ifname}')
+
+            # 1. Get McHits and the event list
+            mcHits = get_mc_hits(ifname)
+            events = mcHits.event_list()
+            if debug:
+                print(f'event list = {events}')
+
+            # 2. Loop over the event list
+            for event_id in events:
+                e_total+=1
+                if debug:
+                    print(f'event number = {e_total}')
+
+                # 3. Get the EventHits from the McHits.
+                eventHits   = get_event_hits_from_mchits(mcHits,
+                                                         event_id,
+                                                         topology,
+                                                         event_type)
+                if debug:
+                    print(f' number of hits in event = {len(eventHits.df)}')
+
+                if len(eventHits.df) <= 2:
+                    print(f"empty event! skip!")
+                    print(eventHits.df)
+                    continue
+
+                e_gt+=1
+                # 4. Get the true extrema
+                true_extrema = get_true_extrema(mcHits,
+                                                event_id,
+                                                event_type)
+                tExtrema.append(true_extrema)
+
+    print(f""" Total events analyzed = {e_total},
+               Non empty events      = {e_gt}
+               """)
+
+    return TrueExtremaFromMcHits(setup, tExtrema_df(tExtrema))
+
+
 def gtrack_df(gtrksEvt : List[GTracks],
               rb : float)->pd.DataFrame:
     """
@@ -451,7 +583,7 @@ def tExtrema_df(tExtrema : List[EventTrueExtrema])->pd.DataFrame:
     for evt_number, text in enumerate(tExtrema):
         te = text.df
         for i in te.index:
-            index_tuples.append((evt_number, i))
+            index_tuples.append((text.event_id, i))
             data.append({'x'      : te.x.values[i],
                          'y'      : te.y.values[i],
                          'z'      : te.z.values[i],

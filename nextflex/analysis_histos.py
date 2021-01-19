@@ -12,6 +12,23 @@ from nextflex.reco_analysis import TrackRecoTiming
 from nextflex.reco_analysis import GtrkStats
 
 
+
+def plot_complexity(rbb, r1e, figsize=(14,7)):
+    def plt_scatter(rb, label):
+        plt.title (f"Reconstruction time versus complexity ({label})")
+        plt.scatter(rb.tVoxelizationXYZ.xyz_bins, rb.tVoxelizationXYZ.time, marker='o')
+        plt.xlabel(r"$x_{bins} \times y_{bins} \times z_{bins} / 10^6$")
+        plt.ylabel("time (seconds)")
+
+    fig = plt.figure(figsize=figsize)
+    ax      = fig.add_subplot(1, 2, 1)
+    plt_scatter(rbb, "bbonu")
+    ax      = fig.add_subplot(1, 2, 2)
+    plt_scatter(r1e, "1e")
+    plt.tight_layout()
+    plt.show()
+
+
 def reco_gtrack_stats_histos(trs : TrackRecoStats,
                              n_evt_hits           = (0,1500),
                              energy_evt_hits      = (0,25),
