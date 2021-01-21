@@ -82,16 +82,16 @@ if __name__ == "__main__":
 
     # define setup
     setup = Setup(flexDATA = FDATA,
-                  tpConfig = files["bb0nu"])
+                  tpConfig = files["1e"])
 
     print(setup)
 
     voxel_bin  = 2
-    contiguity = 10
+    contiguity = 20
 
     rgt  = reco_gtrack_from_mc_hits(setup, voxel_bin, contiguity,
                                 topology   = "all",
-                                event_type = "bb0nu",
+                                event_type = "1e",
                                 baryc      = True,
                                 debug      = False,
                                 file_range = (0, -1),

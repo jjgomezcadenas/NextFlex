@@ -51,40 +51,34 @@ def plot_single_tracks_list(gtEvent,
 
 def single_track_interactive_analysis(gtEvent,
                                       trueExtrema,
-                                      trackList,
-                                      rb,
-                                      events_int = 10,
+                                      rb          = [2.5, 5., 10., 20],
+                                      events_int  = 10,
                                       figsize     = (10,10),
                                       fontsize    = 10,
                                       rangeshift  = 20):
     """
-    Plots up to nplots gtracks of list trackList.
-    Use to fully display GTracks including end-voxels
-    and blobs. It will display only the first track
-    of the GTEvent.
+    Interactive analysis
 
     """
 
     np = 0
-
     interactive = True
     dB = []
-
-    for event_number in trackList:
-        if np >= events_int:
-            interactive = False
-            #break
-
-        np+=1
-        gtrks = gtEvent[event_number]
+    index_tuples = []
+    for event_number, gtrks in enumerate(gtEvent):
         if len(gtrks) > 1:
             print(f" Warning, ignoring event with more than one track")
             continue
 
+        if np >= events_int:
+            interactive = False
+            #break
+        np+=1
         gtrk = gtrks[0]
+        energy = gtrk.voxels_df.energy.sum() / keV
 
         if interactive:
-            print(f"event id  = {gtrk.event_id}")
+            print(f"event id  = {gtrk.event_id}, energy = {energy:5.2f} keV")
 
         trE   = trueExtrema[trueExtrema.evt_number == gtrk.event_id]
         eb1, eb2, db1, db2 = i_gtrack_and_true_extrema(gtrk, trE, rb,
@@ -93,15 +87,25 @@ def single_track_interactive_analysis(gtEvent,
                                                      fontsize,
                                                      rangeshift)
 
-        dB.append({'event_id' : gtrk.event_id,
-                   'eb1'      : eb1,
-                   'eb2'      : eb2,
-                   'db1'      : db1,
-                   'db2'      : db2})
+        for ir, rbl in enumerate(rb):
+            index_tuples.append((event_number, ir))
+            dB.append({'event_id' : gtrk.event_id,
+                       'energy'   : energy,
+                       'rb'       : rbl,
+                       'eb1'      : eb1[ir],
+                       'eb2'      : eb2[ir],
+                       'd1'       : db1,
+                       'd2'       : db2})
 
-    return pd.DataFrame(dB)
 
-def i_gtrack_and_true_extrema(gt,trueExtrema, rb, plot,
+        index = pd.MultiIndex.from_tuples(index_tuples,
+                                  names=["evt_number","rb_number"])
+
+
+    return pd.DataFrame(dB, index)
+
+
+def i_gtrack_and_true_extrema(gt,trueExtrema, rbl, interactive,
                               figsize, fontsize, rangeshift):
     """
     Draw a gtrack, including true Extrema and blobs
@@ -187,15 +191,29 @@ def i_gtrack_and_true_extrema(gt,trueExtrema, rb, plot,
 
         return [XD[i] for i in range(3)]
 
+    def plot_setup():
 
-    hits = gt.voxels
-    e1, e2, t1, t2, d1, d2 = get_extrema_and_distance_between_extrema(gt,
-                                                                 trueExtrema)
-    xrange, yrange, zrange = get_ranges(t1, t2)
-    eb1 = blob_energy(gt, rb, 'e1', unit=keV)
-    eb2 = blob_energy(gt, rb, 'e2', unit=keV)
+        ax.set_xlabel('X (mm)')
+        ax.set_ylabel('Y (mm)')
+        ax.set_zlabel('Z (mm)')
+        ax.set_xlim3d(*xrange)
+        ax.set_ylim3d(*yrange)
+        ax.set_zlim3d(*zrange)
 
-    if plot:
+        x1,y1,z1 = sphere(rbl[-1], e1[0], e1[1], e1[2])
+        x2,y2,z2 = sphere(rbl[-1], e2[0], e2[1], e2[2])
+
+        p = ax.scatter(gt.voxels_df.x, gt.voxels_df.y, gt.voxels_df.z,
+                       cmap='coolwarm', c=(gt.voxels_df.energy / keV))
+        cb = fig.colorbar(p, ax=ax)
+        cb.set_label('Energy (keV)')
+        plot_extrema(e1, e2)
+        plot_blobs(e1, e2, rbl[-1])
+        plot_true_extrema(trueExtrema)
+
+        plt.show()
+
+    def print_setup():
         print(f"""
         Reconstructed extrema:
         e1 = {e1} in mm
@@ -207,34 +225,28 @@ def i_gtrack_and_true_extrema(gt,trueExtrema, rb, plot,
         d1 = {d1:5.1f}     in mm
         d2 = {d2:5.1f}     in mm
         Energy blobs:
-        eb1 = {eb1:5.1f} keV
-        eb2 = {eb2:5.1f} keV
+        eb1 = {eb1} keV
+        eb2 = {eb2} keV
         """)
 
-    if plot:
+
+    hits = gt.voxels
+    e1, e2, t1, t2, d1, d2 = get_extrema_and_distance_between_extrema(gt,
+                                                                 trueExtrema)
+    xrange, yrange, zrange = get_ranges(t1, t2)
+
+    eb1 = [blob_energy(gt, rb, 'e1', unit=keV) for rb in rbl]
+    eb2 = [blob_energy(gt, rb, 'e2', unit=keV) for rb in rbl]
+
+    if interactive:
         fig = plt.figure(figsize=figsize)
         ax = fig.add_subplot(111, projection='3d')
         set_fonts(ax, fontsize)
-        ax.set_xlabel('X (mm)')
-        ax.set_ylabel('Y (mm)')
-        ax.set_zlabel('Z (mm)')
-        ax.set_xlim3d(*xrange)
-        ax.set_ylim3d(*yrange)
-        ax.set_zlim3d(*zrange)
+        print_setup()
+        plot_setup()
 
-        x1,y1,z1 = sphere(rb, e1[0], e1[1], e1[2])
-        x2,y2,z2 = sphere(rb, e2[0], e2[1], e2[2])
-
-        p = ax.scatter(gt.voxels_df.x, gt.voxels_df.y, gt.voxels_df.z,
-                       cmap='coolwarm', c=(gt.voxels_df.energy / keV))
-        cb = fig.colorbar(p, ax=ax)
-        cb.set_label('Energy (keV)')
-        plot_extrema(e1, e2)
-        plot_blobs(e1, e2, rb)
-        plot_true_extrema(trueExtrema)
-
-        plt.show()
     return eb1, eb2, d1, d2
+
 
 def plot_multiple_tracks_list(gtEvent,
                               trackList,
