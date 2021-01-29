@@ -6,6 +6,46 @@ from scipy.stats import norm
 from invisible_cities.core.core_functions import in_range
 from  tics.system_of_units import *
 from  nextflex.reco_analysis import select_gtrack_topology
+from dataclasses import dataclass
+
+
+@dataclass
+class BAD:
+    """
+    Blob Analysis Description (BAD)
+
+    st  : single track
+    eff : efficiency
+    bb  : double beta
+    1e  : single track electrons
+    rf  : rejection factor
+    fm  : figure of merit
+
+    """
+    total_events_bb : float
+    total_events_1e : float
+    st_eff_bb       : float = 0
+    st_eff_1e       : float = 0
+    energy_eff_bb   : float = 0
+    energy_eff_1e   : float = 0
+    blobs_eff_bb    : float = 0
+    blobs_eff_1e    : float = 0
+    bb_1e_rf        : float = 0
+    bb_1e_fm        : float = 0
+
+    def __repr__(self):
+        s = f"""
+        single track eff 1e          = {self.st_eff_1e:5.2f}
+        energy       eff bb          = {self.energy_eff_bb:5.2f}
+        energy       eff 1e          = {self.energy_eff_1e:5.2f}
+        blobs        eff bb          = {self.blobs_eff_bb:5.2f}
+        blobs        eff 1e          = {self.blobs_eff_1e:5.3f}
+        blobs suppresion factor      = {self.bb_1e_rf:5.2f}
+        blobs figure of merit        = {self.bb_1e_fm:5.2f}
+        """
+        return s
+
+    __str__ = __repr__
 
 
 def select_blobs(rbb, eb_cut):

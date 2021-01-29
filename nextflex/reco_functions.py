@@ -319,7 +319,7 @@ def voxels_in_blob(gt : GTrack, rb : float, extreme : str ='e1')->pd.DataFrame:
     """
     distances_from_extreme = gt.distances[gt.extrema[extreme]]
     vb = [voxel for voxel, distance in distances_from_extreme.items()\
-          if distance < rb]
+          if distance <= rb]
 
     return pd.DataFrame(vb,
                      columns =['x', 'y', 'z', 'energy', 'nhits'])

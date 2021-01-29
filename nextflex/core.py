@@ -52,10 +52,28 @@ class Setup:
     mapDIR    : str   = "flexmaps" # where to find the SiPM map
 
 
+    def mc_config(self):
+        return self.mcConfig.\
+        loc[self.mcConfig.index.intersection(self.main_params)]
     def __post_init__(self):
         self.iPATH =  f"{self.flexDATA}/{self.tpConfig}"
         self.ifnames = glob.glob(f"{self.iPATH}/*.h5")
-        self.pitch = find_pitch(self.ifnames[0])
+
+        self.mcConfig = load_mcconfiguration(self.ifnames[0])
+        self.mcConfig.set_index("param_key", inplace = True)
+        self.main_params = ["/Geometry/NextFlex/e_lifetime",
+                       "/Geometry/NextFlex/el_gap_length",
+                       "/Geometry/NextFlex/el_field_int",
+                       "/Geometry/NextFlex/tp_sipm_anode_dist",
+                       "/Geometry/NextFlex/tp_teflon_thickness",
+                       "/Geometry/NextFlex/tp_teflon_hole_diam",
+                       "/Geometry/NextFlex/tp_sipm_sizeX",
+                       "/Geometry/NextFlex/tp_sipm_pitchX",
+                       "num_events",
+                       "TP_SiPM_binning",
+                       "F_SENSOR_L_binning", "F_SENSOR_R_binning"]
+
+        self.pitch = find_pitch(self.mcConfig)
 
         if self.pitch == 15.55:
             self.sipm_map_name =f"sipm_map_15.6_mm.csv"
@@ -65,14 +83,18 @@ class Setup:
             print(f"ERROR, there is no sipm map for pitch ={self.pitch}")
             sys.exit(0)
 
+        self.sensor_binning = get_sensor_binning(self.ifnames[0])
+        self.sensor_types = get_sensor_types(self.ifnames[0])
         self.mPath = f"{self.flexDATA}/{self.mapDIR}/{self.sipm_map_name}"
         self.analysis = f"{self.flexDATA}/analysis/{self.tpConfig}"
-        sns_types = get_sensor_types(self.ifnames[0])
-        sensors = np.unique(sns_types.sensor_name.values)
-        self.nesens = len(sns_types[sns_types.sensor_name == sensors[0]])
-        self.nsipm  = len(sns_types[sns_types.sensor_name == sensors[-1]])
 
-        if sensors[0] == 'PmtR11410':
+        self.sensors = np.unique(self.sensor_types.sensor_name.values)
+        self.nesens = len(self.sensor_types[self.\
+        sensor_types.sensor_name == self.sensors[0]])
+        self.nsipm  = len(self.sensor_types[self.\
+        sensor_types.sensor_name == self.sensors[-1]])
+
+        if self.sensors[0] == 'PmtR11410':
              self.esens= "PMTs"
         else:
             self.esens = 'Fibres'
@@ -140,18 +162,16 @@ class PosQ:
             'qD'  : self.qD
         }
 
-
-
-def find_pitch(fileName : str)->float:
+def find_pitch(mcConfig)->float:
     """
-    Find the pitch in the configuration of the MC file and returns it
+    Find the pitch in the configuration and returns it
 
     """
     def purge_list(lst):
         return list(dict.fromkeys(lst))
 
-    mcConfig = load_mcconfiguration(fileName)
-    mcConfig.set_index("param_key", inplace = True)
+    #mcConfig = load_mcconfiguration(fileName)
+    #mcConfig.set_index("param_key", inplace = True)
     par = mcConfig.loc["/Geometry/NextFlex/tp_sipm_pitchX"]
     #print(par)
     vals = purge_list(par.param_value.split(' '))

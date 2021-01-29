@@ -76,38 +76,42 @@ def load_event_gtracks_json(path : str)->List[GTracks]:
     return ETRKS
 
 
-# def write_gtracks_json(gtrks : List[GTrack], path : str):
-#     """
-#     Writes a list of gtracks to a file using json format
-#
-#     """
-#     # first create a dictionary of json objects (from networkx objects)
-#     dgtrk = {int(gtrks[i].event_id):nx.node_link_data(gtrks[i].gt)\
-#              for i, _ in enumerate(gtrks)}
-#
-#     # then write to disk
-#     with open(path, 'w') as fp:
-#         json.dump(dgtrk, fp)
-#
-#
-# def load_gtracks_json(path : str)->List[GTrack]:
-#     """
-#     Loads a list of gtracks in json format from file
-#
-#     """
-#     # First load the json object from file
-#
-#     with open(path) as json_file:
-#         jdgtrk = json.load(json_file)
-#
-#     # then recreate the list of GTracks
-#     GTRKS = []
-#
-#     for key, values in jdgtrk.items():
-#         gt = nx.node_link_graph(values)
-#         event_id = int(key)
-#         GTRKS.append(GTrack(gt,event_id))
-#     return GTRKS
+def write_event_gtracks_pd(gtrksEvt : List[GTracks], path : str):
+    """
+    Writes a list of gtracks to a file using pandas format
+
+    """
+
+
+    index_tuples = []
+    data = []
+    for evt_number, gtrks in enumerate(gtrksEvt):
+        for trk_number, gt in enumerate(gtrks):
+            vb1 = voxels_in_blob(gt, rb, extreme ='e1')
+            vb2 = voxels_in_blob(gt, rb, extreme ='e2')
+            index_tuples.append((evt_number, trk_number))
+            data.append({'event_id'    : gt.event_id,
+                         'track_id'    : trk_number,
+                         'n_voxels'    : len(gt.voxels),
+                         'trak_length' : gt.length,
+                         'energy'      : gt.voxels_df.energy.sum() / keV,
+                         'x_e1'        : gt.extrema['e1'][0],
+                         'y_e1'        : gt.extrema['e1'][1],
+                         'z_e1'        : gt.extrema['e1'][2],
+                         'energy_e1'   : gt.extrema['e1'][3],
+                         'nvox_b1'     : vb1.energy.count(),
+                         'energy_b1'   : blob_energy(gt, rb, extreme  ='e1'),
+                         'x_e2'        : gt.extrema['e2'][0],
+                         'y_e2'        : gt.extrema['e2'][1],
+                         'z_e2'        : gt.extrema['e2'][2],
+                         'energy_e2'   : gt.extrema['e2'][3],
+                         'nvox_b2'     : vb2.energy.count(),
+                         'energy_b2'   : blob_energy(gt, rb, extreme  ='e2'),
+                        })
+    index = pd.MultiIndex.from_tuples(index_tuples,
+                                      names=["evt_number","trk_number"])
+
+    return pd.DataFrame(data,index)
 
 
 def save_to_JSON(acls, path, numpy_convert=True):
