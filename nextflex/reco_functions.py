@@ -9,19 +9,30 @@ from dataclasses import field
 from dataclasses import asdict
 
 from itertools   import combinations
-from  tics.system_of_units import *
-from  tics.stats_tics import bin_data_with_equal_bin_size
 
 from pandas      import DataFrame
 from typing      import List, Tuple, Dict
 from typing      import TypeVar
 
-from nextflex.types import EventHits
-from nextflex.types import VoxelHits
+from invisible_cities.core.core_functions     import in_range
+from invisible_cities.io.mcinfo_io import load_mcsensor_response_df
+from invisible_cities.io.mcinfo_io import load_mcsensor_positions
+
+from  tics.system_of_units import *
+from  tics.stats_tics import bin_data_with_equal_bin_size
+from  tics.pd_tics    import get_index_slice_from_multi_index
+
+from nextflex.types import  EventSiPM
+from nextflex.types import  PositionsSiPM
+from nextflex.types import  ResponseSiPM
+from nextflex.types import  EventHits
+from nextflex.types import  VoxelHits
 
 Voxel = TypeVar('Voxel', Tuple[float], np.array)  # define voxel as type
 #
 # idx = pd.IndexSlice
+KEY_sensor_fibres  = 100000
+KEY_sensor_pmts    = 100
 
 @dataclass
 class GTrack:
@@ -75,6 +86,77 @@ class GTracks:
     A container of GTrack
     """
     gtracks         : List[GTrack] = field(default_factory=list)
+
+
+
+
+def get_sipm_response(ifname : str)->ResponseSiPM:
+    """
+    Return a ResponseSiPM object:
+
+    """
+    sns_response = load_mcsensor_response_df(ifname)
+    return ResponseSiPM(sns_response[in_range(sns_response.index.\
+                                     get_level_values("sensor_id"),
+                                     KEY_sensor_pmts,
+                                     KEY_sensor_fibres)].sort_index())
+
+
+
+def get_sipm_positions(ifname : str)->PositionsSiPM:
+    """
+    Returns an object representing the positions of the SiPMs
+
+    """
+    sns_positions = load_mcsensor_positions(ifname)
+    return PositionsSiPM(sns_positions[in_range(sns_positions.sensor_id,
+                     KEY_sensor_pmts, KEY_sensor_fibres)].\
+                     reset_index(drop=True).\
+                     sort_index().drop(columns=['sensor_name']))
+
+
+def get_event_sipm(sipm_response : ResponseSiPM, event_id : int)->EventSiPM:
+    """
+    Return an EventSiPM object, representing the SiPM with charge (above threshold)
+    for event_id
+
+    """
+    return EventSiPM(sipm_response.df.loc[(slice(event_id,event_id)), :],
+                     event_id)
+
+
+def get_sipm_event_hits(sipm_evt       : EventSiPM,
+                        sipm_positions : PositionsSiPM,
+                        ecut           : float =0)->EventHits:
+    """
+    Returns the EventHits for evt_id
+
+    """
+    xHit = []
+    yHit = []
+    zHit = []
+    qHit = []
+
+    sipm = sipm_evt.df[sipm_evt.df.charge > ecut] # DF, above ecut
+    sipm_ids = get_index_slice_from_multi_index(sipm, i = 1)
+
+    for sipm_id in sipm_ids:
+        xyz = sipm_positions.df[sipm_positions.df.sensor_id==sipm_id].iloc[0]
+        sipmQZ = sipm.loc[(slice(sipm_evt.event_id, sipm_evt.event_id),
+                           slice(sipm_id, sipm_id)), :]
+        Q = sipmQZ.charge.values
+        Z = sipmQZ.time.values / mus
+        X = np.ones(len(Q)) * xyz.x
+        Y = np.ones(len(Q)) * xyz.y
+        xHit.extend(X)
+        yHit.extend(Y)
+        zHit.extend(Z)
+        qHit.extend(Q)
+
+    return EventHits(pd.DataFrame({'x' : xHit,
+                                   'y' : yHit,
+                                   'z' : zHit,
+                                   'energy'  : qHit}), sipm_evt.event_id)
 
 
 def voxelize_hits(hits     : EventHits,

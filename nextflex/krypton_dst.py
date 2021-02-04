@@ -154,21 +154,3 @@ def prepare_tmpdir(setup):
             os.system(f'rm -r {setup.tmpdir}/*.csv')
         except:
             print("No csv files found in directory")
-
-
-# def collect_h5files(FDATA, setup):
-#     """Collects h5 files to run kr_dst over them"""
-#
-#     ddir = f"{FDATA}/{setup.tpConfig}"
-#     ifnames = glob.glob(f"{ddir}/*.h5")
-#     return ifnames
-
-# def collect_csvfiles(setup):
-#     """Collects csv files to run kr_dst over them"""
-#
-#     ddir = f"{FDATA}/{setup.tpConfig}/{setup.name}"
-#     ifnames = glob.glob(f"{ddir}/*.csv")
-#     return ifnames
-
-# # collect csv files
-# ifnames2 = glob.glob(f"{FDATA}/{setup.tpConfig}/*.csv")

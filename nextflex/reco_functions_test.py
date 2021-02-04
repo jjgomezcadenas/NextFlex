@@ -10,6 +10,12 @@ from pytest           import approx
 import numpy          as np
 import pandas as pd
 
+from  tics.pd_tics    import get_index_slice_from_multi_index
+
+from nextflex.reco_functions import get_sipm_response
+from nextflex.reco_functions import get_sipm_positions
+from nextflex.reco_functions import get_event_sipm
+from nextflex.reco_functions import get_sipm_event_hits
 
 from nextflex.reco_functions import voxelize_hits
 from nextflex.reco_functions import get_voxels_as_list
@@ -24,6 +30,46 @@ from nextflex.reco_functions import gtrack_voxels
 from nextflex.io import write_event_gtracks_json
 from nextflex.io import load_event_gtracks_json
 from nextflex.reco_functions import GTrack
+
+
+def test_get_sipm_response(bb0nu_test_file):
+    sipm_response = get_sipm_response(bb0nu_test_file)
+    sipmr = sipm_response.df
+    sipm_evts = get_index_slice_from_multi_index(sipmr, i = 0)
+    assert np.allclose(sipm_evts, np.array([212, 213, 214, 215]))
+
+    sipm_ids = get_index_slice_from_multi_index(sipmr, i = 1)
+    assert len(sipm_ids) == 3093  # nof sipm in FLEX, this file
+
+
+def test_get_sipm_positions(bb0nu_test_file) :
+    sipm_positions = get_sipm_positions(bb0nu_test_file)
+    sipmp = sipm_positions.df
+    assert sipmp.sensor_id.min() == 1000
+    assert sipmp.sensor_id.max() == 4092
+    assert np.allclose(sipmp.x.min(), -482.05)
+    assert np.allclose(sipmp.x.max(), 482.05)
+
+
+def test_get_event_sipm(bb0nu_test_file):
+    sipm_response = get_sipm_response(bb0nu_test_file)
+    event_ids     = get_index_slice_from_multi_index(sipm_response.df, i = 0)
+    sipm_evt      = get_event_sipm(sipm_response, event_ids[0])
+    assert np.unique(sipm_evt.df.index.get_level_values("event_id"))[0] ==\
+           sipm_evt.event_id
+
+    assert len(get_index_slice_from_multi_index(sipm_evt.df, i = 1)) == 3093
+
+
+def test_get_sipm_event_hits(bb0nu_test_file):
+    sipm_positions = get_sipm_positions(bb0nu_test_file)
+    sipm_response = get_sipm_response(bb0nu_test_file)
+    event_ids     = get_index_slice_from_multi_index(sipm_response.df, i = 0)
+    sipm_evt      = get_event_sipm(sipm_response, event_ids[0])
+    sipm_hits     = get_sipm_event_hits(sipm_evt, sipm_positions, ecut = 10)
+
+    assert sipm_hits.df.energy.max() == 292
+
 
 def test_voxelize_hits(bbonu_hits_and_voxels):
     eventHits, voxelHits = bbonu_hits_and_voxels

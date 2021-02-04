@@ -4,7 +4,7 @@ import pandas as pd
 
 from tics.graphics_reco import plot_gtrack
 from tics.graphics_reco import sphere
-from  tics.system_of_units import *
+from tics.system_of_units import *
 
 from nextflex.reco_functions import blob_energy
 

@@ -41,7 +41,6 @@ class NNN:
     def __getattr__(self, _):
         return NN
 
-
 @dataclass
 class Setup:
     flexDATA  : str   = "/Users/jj/Development/flexdata"
@@ -162,7 +161,7 @@ class PosQ:
             'qD'  : self.qD
         }
 
-def find_pitch(mcConfig)->float:
+def find_pitch(mcConfig : pd.DataFrame)->float:
     """
     Find the pitch in the configuration and returns it
 
@@ -216,6 +215,16 @@ def get_evt_true_positions_and_energy(mcParts: DataFrame)->DataFrame:
     return evt_truePos
 
 
+def get_sipm_postions(sns_positions : DataFrame)->DataFrame:
+    """
+    Returns a data frame with the positions of the SiPMs
+
+    """
+    return sns_positions[in_range(sns_positions.sensor_id,
+                     KEY_sensor_pmts, KEY_sensor_fibres)].\
+                     reset_index(drop=True).\
+                     sort_index().drop(columns=['sensor_name'])
+
 def get_sensor_response(sns_response : DataFrame,
                         sensor_type  : str = 'PMT')->DataFrame:
     """Returns a data frame with the charge and time of each sensor
@@ -224,20 +233,21 @@ def get_sensor_response(sns_response : DataFrame,
 
     """
 
-    #sns_response = load_mcsensor_response_df(filename)
+    assert sensor_type in ("PMT", "SiPM", "FIBRES")
 
     if sensor_type == 'PMT':
-        sensor_response = sns_response[sns_response.index.\
-                get_level_values("sensor_id") <= KEY_sensor_pmts]
-        return sensor_response
+        return sns_response[sns_response.index.\
+               get_level_values("sensor_id") <= KEY_sensor_pmts].sort_index()
+
     elif sensor_type == 'FIBRES':
-        sensor_response = sns_response[sns_response.index.\
-                get_level_values("sensor_id") > KEY_sensor_fibres]
+        return sns_response[sns_response.index.\
+               get_level_values("sensor_id") > KEY_sensor_fibres].sort_index()
         return sensor_response
     else:
-        sensor_response = sns_response[in_range(
-        sns_response.index.get_level_values("sensor_id"), *SIPM_ids)]
-        return sensor_response
+        return sns_response[in_range(sns_response.index.\
+               get_level_values("sensor_id"),
+               KEY_sensor_pmts, KEY_sensor_fibres)].sort_index()
+
 
 
 def sensor_response_ti(sensor_response : DataFrame)->DataFrame:
@@ -300,7 +310,7 @@ def mcparts_and_sensors_response(ifname : str,
         return False
     try:
         sipm_response               = get_sensor_response(sns_response,
-                                      sensor_type = 'SIPM')
+                                      sensor_type = 'SiPM')
     except:
         print(f'Failed reading sipm_response: file ={ifname}')
         return False

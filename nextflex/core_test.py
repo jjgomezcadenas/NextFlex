@@ -5,6 +5,8 @@ import os
 import pytest
 import numpy  as np
 import tables as tb
+import glob
+
 from pytest           import approx
 
 import numpy          as np
@@ -14,6 +16,7 @@ import invisible_cities.core.system_of_units  as units
 from invisible_cities.core.core_functions     import in_range
 
 from invisible_cities.io.mcinfo_io import load_mcparticles_df
+from invisible_cities.io.mcinfo_io import load_mcconfiguration
 from scipy.stats   import norm
 from nextflex.core import Setup
 from nextflex.core import get_evt_true_positions_df
@@ -117,6 +120,40 @@ def test_Setup(FDATA):
     assert setup.esens == esens
     assert setup.nesens == nesens
 
+def test_setup(FDATA):
+    fdir     = os.path.join(FDATA,"testSetupData")
+    tpConfig = "FLEX100_M6_O6.EL8bar.bb0nu"
+    setbb    = Setup(flexDATA = fdir,
+                  tpConfig = tpConfig)
+
+    #1. find the right file:
+    testd = os.path.join(fdir, tpConfig)
+    testf = glob.glob(f"{testd}/*.h5")[0]
+
+    assert setbb.ifnames[0] == testf
+
+    #2. pitch for this file is 15.55 mm
+    assert setbb.pitch == 15.55
+
+    # file contains 4 events
+    assert int(setbb.mc_config().loc['num_events'].values[0]) == 4
+
+    # TP binning is 1 mus
+    assert float(setbb.mc_config().\
+    loc['TP_SiPM_binning'].values[0].split(" ")[0]) == 1.0
+
+    # sensors
+    # Names of sensors
+    sensor_names = setbb.sensor_binning.index.values
+    assert sensor_names[0] == "PmtR11410"
+    assert sensor_names[1] == "TP_SiPM"
+    bw_in_ns = setbb.sensor_binning.bin_width.values
+    assert bw_in_ns[0] == 25.
+    assert bw_in_ns[1] == 1000.
+
+    # number of PMTs and SiPMs
+    assert setbb.nesens == 60
+    assert setbb.nsipm == 3093
 
 def test_find_pitch(FDATA):
     testFile      = os.path.join(FDATA,"testData",
@@ -124,8 +161,13 @@ def test_find_pitch(FDATA):
     testFile2      = os.path.join(FDATA,"testData",
                             'FLEX100_M6_O6_P10.Kr83.ACTIVE.3010.next.h5')
 
-    assert find_pitch(testFile) == 15.55
-    assert find_pitch(testFile2) == 10
+    mcConfig1 = load_mcconfiguration(testFile)
+    mcConfig1.set_index("param_key", inplace = True)
+    mcConfig2 = load_mcconfiguration(testFile2)
+    mcConfig2.set_index("param_key", inplace = True)
+
+    assert find_pitch(mcConfig1) == 15.55
+    assert find_pitch(mcConfig2) == 10
 
 
 def test_get_evt_true_positions_df(mc_sns_sipm_map):
@@ -166,7 +208,7 @@ def test_get_sensor_response_sipms(mc_sns_sipm_map):
     """The values given in test correspond to the numbers of sensors"""
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     sipm_response_(sipm_response)
 
 
@@ -193,7 +235,7 @@ def test_sensor_response_ti_fibres(mc_sns_sipm_map):
 def test_sensor_response_ti_sipms(mc_sns_sipm_map):
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     sipmdf          = sensor_response_ti(sipm_response)
     assert np.all(in_range(sipmdf.sensor_id, 1000,4500))
     assert np.all(in_range(sipmdf.tot_charge, 0, 130))
@@ -220,7 +262,7 @@ def test_event_sensor_response_ti_fibres(mc_sns_sipm_map):
 def test_event_sensor_response_ti_sipms(mc_sns_sipm_map):
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     sipm_evt        = event_sensor_response_ti(sipm_response, event_id=100000)
     assert sipm_evt.tot_charge.sum() == 795
 
@@ -256,7 +298,7 @@ def test_get_Q(mc_sns_sipm_map):
     """Check value of Q follows poisson"""
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     setup    = Setup(sipmPDE=0.999999)
     sipm_evt = event_sensor_response_ti(sipm_response, event_id=100000)
     Q        = sipm_evt.tot_charge.values
@@ -272,7 +314,7 @@ def test_get_qtot(mc_sns_sipm_map):
     """Check value of total charge no cuts in the SiPM plane"""
     tsu             = mc_sns_sipm_map
     sipm_response   = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     sipmdf        = sensor_response_ti(sipm_response)
     setup         = Setup()
     qtot          = get_qtot(sipmdf, setup)
@@ -285,7 +327,7 @@ def test_get_q_and_get_pos(mc_sns_sipm_map):
     tsu           = mc_sns_sipm_map
     krdf          = get_evt_true_positions_and_energy(tsu.mcParts)
     sipm_response  = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
 
     sipmdf        = sensor_response_ti(sipm_response)
     setup         = Setup()
@@ -309,7 +351,7 @@ def test_diff_pos(mc_sns_sipm_map):
     tsu           = mc_sns_sipm_map
     krdf          = get_evt_true_positions_and_energy(tsu.mcParts)
     sipm_response = get_sensor_response(tsu.sns_response_pmt,
-                                          sensor_type = 'SIPM')
+                                          sensor_type = 'SiPM')
     sipmdf        = sensor_response_ti(sipm_response)
     setup         = Setup()
     pqdf = get_position(krdf.index, sipmdf, tsu.sipm_map, setup)

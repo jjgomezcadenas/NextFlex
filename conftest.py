@@ -9,12 +9,20 @@ from invisible_cities.io.mcinfo_io import load_mchits_df
 from invisible_cities.io.mcinfo_io import load_mcparticles_df
 from invisible_cities.io.mcinfo_io import load_mcsensor_response_df
 
+from  tics.pd_tics    import get_index_slice_from_multi_index
+
 from nextflex.mctrue_functions     import McParticles
 from nextflex.mctrue_functions     import McHits
 from nextflex.mctrue_functions     import get_mc_hits
 from nextflex.reco_functions       import voxelize_hits
 from nextflex.mctrue_functions     import get_event_hits_from_mchits
 from nextflex.reco_functions       import get_voxels_as_list
+
+from nextflex.reco_functions import get_sipm_response
+from nextflex.reco_functions import get_sipm_positions
+from nextflex.reco_functions import get_event_sipm
+from nextflex.reco_functions import get_sipm_event_hits
+
 
 @dataclass
 class TestSetup:
@@ -33,6 +41,22 @@ def FDIR():
 def FDATA():
     return os.environ['FLEXDATA']
 
+@pytest.fixture(scope = 'session')
+def bb0nu_test_file(FDATA):
+    testFile  = os.path.join(FDATA,"testSetupData",
+                            "FLEX100_M6_O6.EL8bar.bb0nu",
+                            'FLEX100_M6_O6.Xe136_bb0nu.ACTIVE.53.next.h5')
+    return testFile
+
+
+@pytest.fixture(scope = 'session')
+def sipm_hits(bb0nu_test_file):
+    sipm_positions = get_sipm_positions(bb0nu_test_file)
+    sipm_response = get_sipm_response(bb0nu_test_file)
+    event_ids     = get_index_slice_from_multi_index(sipm_response.df, i = 0)
+    sipm_evt      = get_event_sipm(sipm_response, event_ids[0])
+    sipm_hits     = get_sipm_event_hits(sipm_evt, sipm_positions, ecut = 10)
+    return sipm_hits
 
 @pytest.fixture(scope='session')
 def mc_sns_sipm_map(FDATA):

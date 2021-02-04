@@ -122,6 +122,118 @@ class McHits:
 
 
 @dataclass
+class ResponseSiPM:
+    """
+    Represents the SiPM with charge (above threshold).
+    indexed by event_id and sensor_id
+
+    """
+    df         : DataFrame
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame.
+
+        The field index specify the raws (multiindex)
+
+        """
+        self.columns : Tuple[str] = ('charge', 'time')
+        self.index   : Tuple[str] = ('event_id', 'sensor_id')
+
+        assert self.columns == tuple(self.df.columns)
+        assert self.index   == tuple(self.df.index.names)
+
+
+    def __repr__(self):
+        s = f"""<{get_class_name(self)}>
+        Columns = {self.columns}
+        Indexes = {self.index}
+        """
+        return s
+
+    __str__ = __repr__
+
+
+@dataclass
+class EventSiPM:
+    """
+    Represents the SiPM with charge (above threshold)
+    for a given event
+
+    """
+    df         : DataFrame
+    event_id   : int
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame
+
+        """
+        self.columns : Tuple[str] = ('charge', 'time')
+
+        assert self.columns == tuple(self.df.columns)
+
+
+    def __repr__(self):
+        s = f"""<{get_class_name(self)}>
+        event number = {self.event_id}
+        Columns = {self.columns}
+        """
+        return s
+
+    __str__ = __repr__
+
+
+@dataclass
+class PositionsSiPM:
+    """
+    Represents the positions of the SiPM
+
+    """
+    df         : DataFrame
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame
+
+        """
+        self.columns : Tuple[str] = ('sensor_id', 'x', 'y', 'z')
+
+        assert self.columns == tuple(self.df.columns)
+
+@dataclass
+class PositionsSiPM:
+    """
+    Represents the positions of the SiPM
+
+    """
+    df         : DataFrame
+
+    def __post_init__(self):
+        """
+        The field columns speciy and thus documents the
+        columns expected in the data frame
+
+        """
+        self.columns : Tuple[str] = ('sensor_id', 'x', 'y', 'z')
+
+        assert self.columns == tuple(self.df.columns)
+
+
+    def __repr__(self):
+        s = f"""<{get_class_name(self)}>
+        Columns = {self.columns}
+        """
+        return s
+
+    __str__ = __repr__
+
+
+
+@dataclass
 class EventHits:
     """
     Wrapper data class to give a type to the DataFrame
@@ -133,11 +245,14 @@ class EventHits:
         - "primary" : only primary hits included
     - event_type : either "bbonu" (signal) or "1e" (background)
 
+    Both parameters are relevant for "True Hits", and can be
+    set to none, for reco hits.
+
     """
     df         : DataFrame
     event_id   : int
-    topology   : str
-    event_type : str
+    topology   : Union[str, None] = None
+    event_type : Union[str, None] = None
 
     def __post_init__(self):
         """

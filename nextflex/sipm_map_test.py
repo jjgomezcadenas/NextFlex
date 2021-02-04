@@ -15,6 +15,8 @@ import pandas as pd
 import invisible_cities.core.system_of_units  as units
 from invisible_cities.core.core_functions     import in_range
 
+from invisible_cities.io.mcinfo_io import load_mcconfiguration
+
 from nextflex.sipm_map import sipm_pos
 from nextflex.core import find_pitch
 from nextflex.core import NN
@@ -25,12 +27,15 @@ def test_sipm_pos(FDATA, mc_sns_sipm_map):
     testFile      = os.path.join(FDATA,"testData",
                             'FLEX100_M6_O6.Kr83.ACTIVE.1000.next.h5')
 
+    mcConfig = load_mcconfiguration(testFile)
+    mcConfig.set_index("param_key", inplace = True)
+
     XL = mc_sns_sipm_map.sipm_map.xl.values
     XR = mc_sns_sipm_map.sipm_map.xr.values
     YU = mc_sns_sipm_map.sipm_map.yu.values
     YD = mc_sns_sipm_map.sipm_map.yd.values
 
-    pitch = find_pitch(testFile)
+    pitch = find_pitch(mcConfig)
 
     P = np.array(len(XL) *[2 * pitch])
     DX = [xr - xl if xl != NN and xr != NN else 2 * pitch for xl,xr in zip(XL, XR) ]
