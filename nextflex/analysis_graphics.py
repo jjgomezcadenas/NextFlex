@@ -49,6 +49,37 @@ def plot_single_tracks_list(gtEvent,
                     figsize, fontsize)
 
 
+def plot_multiple_tracks(gtrks,
+                         autorange = True,
+                         xrange    = (-500,500),
+                         yrange    = (-500,500),
+                         zrange    = (0,1000),
+                         nplots    = 10,
+                         figsize   = (14,10),
+                         fontsize  =10):
+    """
+    Plots up to nplots gtracks
+    Use to display multiple GTracks in an event.
+    Each GTrack comes in a diferent color
+
+    """
+
+
+    fig = plt.figure(figsize=figsize)
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X (mm)')
+    ax.set_ylabel('Y (mm)')
+    ax.set_zlabel('Z (mm)')
+
+    if not autorange:
+        ax.set_xlim3d(*xrange)
+        ax.set_ylim3d(*yrange)
+        ax.set_zlim3d(*zrange)
+
+    for i, gt in enumerate(gtrks):
+        p = ax.scatter(gt.voxels_df.x, gt.voxels_df.y, gt.voxels_df.z)
+    plt.show()
+
 
 def plot_multiple_tracks_list(gtEvent,
                               trackList,
@@ -61,8 +92,6 @@ def plot_multiple_tracks_list(gtEvent,
                               fontsize  =10):
     """
     Plots up to nplots gtracks of list trackList.
-    Use to display multiple GTracks in an event.
-    Each GTrack comes in a diferent color
 
     """
 
@@ -70,21 +99,14 @@ def plot_multiple_tracks_list(gtEvent,
     for event_number in trackList:
         print(f"event number in gtEvent list  = {event_number}")
         gtrks = gtEvent[event_number]
-
-        fig = plt.figure(figsize=figsize)
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_xlabel('X (mm)')
-        ax.set_ylabel('Y (mm)')
-        ax.set_zlabel('Z (mm)')
-
-        if not autorange:
-            ax.set_xlim3d(*xrange)
-            ax.set_ylim3d(*yrange)
-            ax.set_zlim3d(*zrange)
-
-        for i, gt in enumerate(gtrks):
-            p = ax.scatter(gt.voxels_df.x, gt.voxels_df.y, gt.voxels_df.z)
-        plt.show()
+        plot_multiple_tracks(gtrks,
+                             autorange,
+                             xrange,
+                             yrange,
+                             zrange,
+                             nplots,
+                             figsize,
+                             fontsize)
         np+=1
         if np > nplots:
             break

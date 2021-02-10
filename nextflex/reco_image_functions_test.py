@@ -44,7 +44,8 @@ def test_label_slice(sipm_hits):
     assert lmax == 31
     assert ilmax == 27
 
-    dfzm = sipm_hits.df[sipm_hits.df.z == zsl[ilmax]]
+    # dfzm = sipm_hits.df[sipm_hits.df.z == zsl[ilmax]]
+    dfzm = sipm_hits.df[sipm_hits.df.z == zsl[ilmax]].reset_index(drop=True)
     sckl = label_slice(dfzm)
 
     assert np.allclose(sckl.lbl, lbl_test)
